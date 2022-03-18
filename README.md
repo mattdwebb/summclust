@@ -8,6 +8,7 @@ in clustered regression models: Reliable inference using summclust. QED Working 
 nlswork example - using regress
 
   . webuse nlswork, clear
+  
   . reg ln_wage i.grade i.age i.birth_yr union race msp, cluster(ind)
 
 nlswork - using summclust
