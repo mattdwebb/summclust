@@ -2,6 +2,7 @@
 Stata module for cluster level measures of leverage, influence,  and a cluster jackknife variance estimator.
 
 For a very detailed description see:
+
 MacKinnon, J.G., Nielsen, M.Ø., Webb, M.D., 2022. Leverage, influence, and the jackknife
 in clustered regression models: Reliable inference using summclust. QED Working Paper 1483. Queen’s University.    
 
