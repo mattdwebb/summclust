@@ -1,7 +1,7 @@
 /*------------------------------------*/
 /*summclust */
 /*written by Matt Webb */
-/*version 1.005 2022-03-10 */
+/*version 1.007 2022-04-07 */
 /*------------------------------------*/
 
 cap program drop summclust
@@ -22,7 +22,6 @@ program define summclust, rclass
 	if "`sample'" != "" {
 	    global SMPL = "if `sample'"
 	}
-	
 	
 		
 	/*check rho argument*/
@@ -159,9 +158,7 @@ program define summclust, rclass
 						
 		/*check regression after partialing out*/
 		 qui reg ytilde  xtilde* t99* , noc  cluster(`cluster')
-		 
-		 *qui gen temp_sample = e(sample)==1
-		 
+		 		 
 		 global BETATEMP = _b[xtilde]
 		
 		 local setemp = _se[xtilde]
@@ -251,10 +248,8 @@ program define summclust, rclass
 				
 			}
 			
-			*mata: betadiff2 = betadiff betadiff
 			mata: cv3j = sqrt( (($G-1)/$G) :* betadiffsum)
 			
-			mata: cv3j[1,1]
 			mata: cv3jse = cv3j[1,1]
 			mata: st_numscalar("cv3jse", cv3jse)
 			mata: st_local("cv3jse", strofreal(cv3jse))
@@ -371,13 +366,11 @@ program define summclust, rclass
 					
 			  
 				/*geometric mean*/
-					mata: prod = 1
+				
+					mata: logvar = log(`svar')
+					mata: meanlog = mean(logvar)
 					
-					forvalues g = 1/ $G {						
-						mata: prod = prod * `svar'[`g',1]
-					}
-					
-					mata: geo = prod^(1/${G})
+					mata: geo = exp(meanlog)
 										
 					mata: bonus[3,`s'] = geo
 					
@@ -413,12 +406,71 @@ program define summclust, rclass
 			/*rowlabels for cluster by cluster matrix*/
 				qui levelsof `cluster' $SMPL, local(CLUSTERNAMES)
 				
+				mata: cnames = J($G,1,".")
+				local f = 0
+				foreach cnames in `CLUSTERNAMES'{
+				    local f = `f' + 1
+					mata: cnames[`f',1] = "`cnames'"
+				}
+				
 		
 		
 		
 		/****************************/
 		/*gstar option*/
 		/***************************/
+			/*check if fixed effects invariant within clusters*/
+			if `gstarind' == 1 {
+			 
+				if `"`fevar'"' != "" {
+					
+					foreach fvar in $FEVAR {
+						
+					
+						if "`fvar'" == "`cluster'" {
+							local gstarind = 2
+						}
+						else {
+						    qui cap drop temp_sd
+							qui bysort  `fvar': egen temp_sd = sd(`cluster')
+							
+							qui summ temp_sd
+			
+							local sd_mean = r(mean)
+			
+							if inrange(`sd_mean',-0.0001,0.0001)==1{
+								local gstarind = 2
+							}
+							
+						}
+						
+						
+					}
+				} /*end of fevar if*/
+				
+				if `"`absorb'"' != "" {
+						
+					if "`absorb'" == "`cluster'" {
+						local gstarind = 2
+					}
+					else {
+						qui cap drop temp_sd
+						qui bysort  `absorb': egen temp_sd = sd(`cluster')
+						
+						qui summ temp_sd
+		
+						local sd_mean = r(mean)
+		
+						if inrange(`sd_mean',-0.0001,0.0001)==1{
+							local gstarind = 2
+						}
+						
+					}
+						
+				} /*end of absorb if*/
+			
+
+			} /*end of if 1*/
 		
 			if `gstarind' == 1 {
 		    		
@@ -473,6 +525,7 @@ program define summclust, rclass
 				mata: gstarone = $G/(1 + gammaone)
 				mata: gstarzero = $G/(1 + gammazero)
 				mata: gstarrho = $G/(1 + gammarho)
+			
 				
 				mata: st_numscalar("gstarzero", gstarzero)
 				mata: st_local("gstarzero", strofreal(gstarzero))
@@ -484,7 +537,44 @@ program define summclust, rclass
 				mata: st_local("gstarrho", strofreal(gstarrho))
 				
 		
-		} /*end of gstar if */
+		} 
+		else if `gstarind' == 2 {
+		    
+				forvalues g= 1/ $G {
+					
+					mata: w`g' = XpXi[.,1]
+		
+					mata: gamzero`g' =  w`g'' *  X`g'pX`g' * w`g'
+					
+				}
+				
+				mata: gamzt = 0
+								
+				forvalues g = 1 / $G {
+					
+					mata: gamzt = gamzt + gamzero`g'
+										
+				}
+				
+				mata: gambarz = gamzt/ $G
+											
+				mata: gammazero = 0
+				
+				
+				forvalues g = 1 / $G {
+					
+					mata: tempzero = ((gamzero`g' - gambarz)/gambarz)^2
+					mata: gammazero = gammazero + tempzero
+					
+				}
+				
+				mata: gammazero = gammazero / $G
+				mata: gstarzero = $G/(1 + gammazero)
+			
+				mata: st_numscalar("gstarzero", gstarzero)
+				mata: st_local("gstarzero", strofreal(gstarzero))
+				
+		}
 				  
 		/*output display*/
 		disp ""
@@ -493,12 +583,22 @@ program define summclust, rclass
 		disp " "
 		disp "Cluster summary statistics for $XTEMP when clustered by `cluster'."
 		disp "There are `numobs' observations within ${G} `cluster' clusters."
+		
+		
+		if "`jackknife'"!="" {	
+			matrix define cvstuff = J(3,6,.)
+			matrix rownames cvstuff = CV1 CV3 CV3J
+			global RSPECCV "&|&&|"
+		}
+		else {
+			matrix define cvstuff = J(2,6,.)
+			matrix rownames cvstuff = CV1 CV3
+			global RSPECCV "&|&|"
+		}
 
 		/*check if absorb used improperly*/
 		if `nocv3'==1 {
 			
-			matrix define cvstuff = J(2,6,.)
-		
 			matrix cvstuff[1,1] = $BETATEMP
 			matrix cvstuff[1,2] = `setemp'
 			matrix cvstuff[1,3] = `cv1t'
@@ -508,11 +608,8 @@ program define summclust, rclass
 			
 					
 			matrix cvstuff[2,1] = $BETATEMP
-			matrix cvstuff[2,2] = .
-			matrix cvstuff[2,3] = .
-			matrix cvstuff[2,4] = .
-			matrix cvstuff[2,5] = .
-			matrix cvstuff[2,6] = . 
+			
+		
 			
 			disp" "
 				disp as error "*********************************************************************"
@@ -522,14 +619,7 @@ program define summclust, rclass
 				disp "*********************************************************************"
 				disp" "
 			
-			matrix rownames cvstuff = CV1 CV3
-			matrix colnames cvstuff = "Coeff" "Sd. Err." "t-stat" "P value" CI-lower CI-upper
-			
-			matlist cvstuff, title(Regression Output) rowtitle(s.e.) ///
-				cspec(& %-4s w6 | %9.6f w10 & %9.6f & %6.4f w7 & %6.4f w7 & %9.6f w10 & %9.6f w10 &)  rspec("$RSPECCV")
-			
-			disp as error "WARNING - CV3 estimates not available as absorb option misproperly specified."
-			
+	
 			/*also replace the beta-no-g and leverage*/
 			forvalues i = 1/ 7 {
 				matrix clustsum[`i',2] = .
@@ -540,17 +630,6 @@ program define summclust, rclass
 		}
 		else {
 			
-			if "`jackknife'"!="" {	
-				matrix define cvstuff = J(3,6,.)
-				matrix rownames cvstuff = CV1 CV3 CV3J
-				global RSPECCV "&|&&|"
-			}
-			else {
-			    matrix define cvstuff = J(2,6,.)
-				matrix rownames cvstuff = CV1 CV3
-				global RSPECCV "&|&|"
-			}
-		
 			matrix cvstuff[1,1] = $BETATEMP
 			matrix cvstuff[1,2] = `setemp'
 			matrix cvstuff[1,3] = `cv1t'
@@ -574,23 +653,32 @@ program define summclust, rclass
 				matrix cvstuff[3,4] = `cv3jp'
 				matrix cvstuff[3,5] = `cv3jlci'
 				matrix cvstuff[3,6] = `cv3juci' 
+				
+				if `nocv3'== 1 {
+					forvalues j= 2 /6 {
+						matrix cvstuff[3,`j'] = .
+					}
+					
+				}
 			
 			}
+		}
+		
+		matrix colnames cvstuff = "Coeff" "Sd. Err." "t-stat" "P value" CI-lower CI-upper
 			
-			
-			matrix colnames cvstuff = "Coeff" "Sd. Err." "t-stat" "P value" CI-lower CI-upper
-			
-			matlist cvstuff, title(Regression Output) rowtitle(s.e.) ///
-				cspec(& %-4s w6 | %9.6f w10 & %9.6f & %6.4f w7 & %6.4f w7 & %9.6f w10 & %9.6f w10 &)  rspec("$RSPECCV")
-			
+		matlist cvstuff, title(Regression Output) rowtitle(s.e.) ///
+			cspec(& %-4s w6 | %9.6f w10 & %9.6f & %6.4f w7 & %6.4f w7 & %9.6f w10 & %9.6f w10 &) ///
+			rspec("$RSPECCV")
+				
+		if `nocv3'== 1 {
+			disp as error "WARNING - CV3 estimates not available as absorb option misproperly specified."
 		}
 		
 		mata: cvstuff=st_matrix("cvstuff")
 		
-		*mata: cvstuff
-
 		matlist clustsum , title("Cluster Variability") rowtitle(Statistic) ///
-			cspec(& %-10s | %8.1f o4 & %9.6f  o4 & %9.6f  w10 & %9.6f  o4 &) rspec(&-&&&&&-&)
+			cspec(& %-10s | %8.1f o4 & %9.6f  o4 & %9.6f  w10 & %9.6f  o4 &) ///
+			rspec(&-&&&&&-&)
 		
 		/*error for no-beta-g*/
 			if `nocv3'==1 {
@@ -616,14 +704,22 @@ program define summclust, rclass
 			disp " "
 			disp "Effective Number of Clusters"
 			disp "-----------------------------"
-			disp "G*(0)  is `gstarzero'."
+			disp  "G*(0)  is " " `gstarzero'"
 			if inrange(`rho',0.1234,0.1235)==0 {
-				disp "G*(`rho') is `gstarrho'."
+				disp   "G*(`rho') is `gstarrho' "
 			}
-			 disp "G*(1)  is `gstarone'."
+			 disp  "G*(1)  is `gstarone' "
 			
 		}
+		else if `gstarind'==2 {
+			disp " "
+			disp "Effective Number of Clusters"
+			disp "-----------------------------"
+			disp  "G*(0)  is " " `gstarzero'"
+			disp as error "G*(rho) and G*(1) are not available."
+			disp as error "There are fixed effects at the cluster or subcluster level."
 		
+		}
 		/*additional summary statistcs*/
 		if "`svars'"!=""{
 			
@@ -635,28 +731,52 @@ program define summclust, rclass
 			matlist bonus, title("Alternative Sample Means and Ratios to Arithmetic Mean") ///
 				cspec(& %-10s w15 | %11.3f o4 & %9.6f  w10  & %9.6f  w10 & %9.6f  o4 &) rspec(&|&&&&&|)
 			
-		}		
+		} /*end of svars*/		
 			
-			mata: scall = (ng, Leverage, pLeverage, betag)
-			if "`table'"!="" {
+		mata: scall = (ng, Leverage, pLeverage, betag)
+		
+		if "`table'"!="" {
+			
+			if $G < 53 {
 			    
-				
 				mata: st_matrix("scall", scall)
-					matrix rownames scall = `CLUSTERNAMES'
-					matrix colnames scall =  Ng Leverage "Partial L." "beta no g"  
-				
+				matrix rownames scall = `CLUSTERNAMES'
+				matrix colnames scall =  Ng Leverage "Partial L." "beta no g"  
 			
-				
 				global TITLE "Cluster by Cluster Statistics"
 				global Gm1 = $G - 1 
+			
+				
+				
 				local rspec : display "rspec(&-"_dup(${Gm1}) "&" "-)"
+				
+				
 				matlist scall, title("${TITLE}") rowtitle("`cluster'") ///
 					cspec(& %-10s | %8.1f o4 & %9.6f  o4 & %9.6f  w10 & %9.6f  o4 &) `rspec'
 				
-				
+			
 				return matrix scall = scall
-
 			}
+			else {
+			    
+			
+				disp " "
+				disp "Cluster by Cluster Statistics"
+				
+				disp as error "The number of clusters, $G exceeds 52, results reported as matrix. "
+				
+				disp as text ""
+				
+				*mata: bigtab = cnames, "scall"
+				
+				*mata: bigtab
+				mata: scall
+				
+			}
+			
+
+
+			} /*end of table*/
 			
 		/*stuff to return*/
 			return matrix ng = ng
@@ -700,6 +820,9 @@ program define summclust, rclass
 					return local gstarone = `gstarone'
 					return local gstarrho = `gstarrho'
 				}
+				else if `gstarind'==2 {	
+					return local gstarzero = `gstarzero'
+				}
 				
 			
 end 
@@ -709,3 +832,6 @@ end
 /*--------------------------------------*/
 *1.0004 - mata cv table, CV3J addition, absorb check, return stuff
 *1.0005 - sample option, make gstar locals conditional
+*1.0006 - gstar1 caution, large table as matrix
+*1.0007 - geometric mean
+*1.0008 - absorb-jack conflict bug corrected
