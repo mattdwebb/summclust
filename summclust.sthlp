@@ -159,6 +159,7 @@ for beta using the CV_3J standard error.{p_end}
 
 {p2col 5 20 24 2: Matrices}{p_end}
 
+
 {synopt:{cmd:cvstuff}}The matrix with the standard errors, t-statistics, etc.{p_end}
 
 {synopt:{cmd:clustsum}}The matrix with the measures of cluster variability.{p_end}
@@ -168,6 +169,9 @@ Only calculated when the option {cmd:svars} is specified.{p_end}
 
 {synopt:{cmd:scall}}The matrix with the cluster by cluster statistics.  
 Only calculated when the option {cmd:table} is specified.{p_end}
+
+{synopt:{cmd:cnames}}The string matrix with the cluster names, to match with elements in scall. Only calculated when the option {cmd:table} is specified.{p_end}
+
 
 
 {title:Examples}
