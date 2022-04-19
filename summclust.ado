@@ -1,8 +1,9 @@
 /*------------------------------------*/
 /*summclust */
 /*written by Matt Webb */
-/*version 1.007 2022-04-07 */
+/*version 1.0009 2022-04-18 */
 /*------------------------------------*/
+version 11
 
 cap program drop summclust
 program define summclust, rclass
@@ -835,3 +836,4 @@ end
 *1.0006 - gstar1 caution, large table as matrix
 *1.0007 - geometric mean
 *1.0008 - absorb-jack conflict bug corrected
+*1.0009 - added version number for ssc submission
