@@ -1,9 +1,9 @@
 /*------------------------------------*/
 /*summclust */
 /*written by Matt Webb */
-/*version 1.0009 2022-04-18 */
+/*version 1.010 2022-04-21 */
 /*------------------------------------*/
-version 11
+version 13
 
 cap program drop summclust
 program define summclust, rclass
@@ -52,6 +52,9 @@ program define summclust, rclass
 	/*flag for abosrb used properly*/
 	local nocv3 = 0 
 	
+	/*flag for singular clusters*/
+	local singclust = 0
+	
 	/*for fevar*/
 	if `"`fevar'"' != "" {
 		
@@ -98,22 +101,7 @@ program define summclust, rclass
 			qui predict t99_`cvar' if temp_sample==1, res
 			
 		}
-		
-		/*check if the fixed effects are constant within cluster*/
-			qui egen temp_indexb  = group(`absorb')
-		
-			*qui bysort `cluster': egen temp_sd = sd(temp_indexb)
-			qui bysort  temp_indexb: egen temp_sd = sd(`cluster')
-			
-			
-			qui summ temp_sd
-			
-			local sd_mean = r(mean)
-			
-			if inrange(`sd_mean',-0.0001,0.0001)==0{
-								
-				local nocv3 = 1
-			}
+	
 		
 		
 	} /*end of if*/
@@ -148,7 +136,29 @@ program define summclust, rclass
 			qui putmata xtilde = xtilde* if temp_sample==1, replace
 			mata: xnum = cols(xtilde)
 			
+			
+			
+			
+		/*check if the fixed effects are constant within cluster*/
+		if `"`absorb'"' != "" {
+			qui egen temp_indexb  = group(`absorb')
+		
+			*qui bysort `cluster': egen temp_sd = sd(temp_indexb)
+			qui bysort  temp_indexb: egen temp_sd = sd(temp_indexa)
+			
+			
+			qui summ temp_sd
+			
+			local sd_mean = r(mean)
+			
+			if inrange(`sd_mean',-0.0001,0.0001)==0{
+								
+				local nocv3 = 1
+			}
+		}
+			
 	/*put everything in mata*/
+		sort temp_indexa
 		qui putmata X = (xtilde* t99* ) if temp_sample==1, replace
 		mata: k = cols(X)
 		mata: st_numscalar("k", k)
@@ -158,7 +168,7 @@ program define summclust, rclass
 		mata: st_local("numobs", strofreal(numobs))	
 						
 		/*check regression after partialing out*/
-		 qui reg ytilde  xtilde* t99* , noc  cluster(`cluster')
+		 qui reg ytilde  xtilde* t99* , noc  cluster(temp_indexa)
 		 		 
 		 global BETATEMP = _b[xtilde]
 		
@@ -217,6 +227,9 @@ program define summclust, rclass
 		mata: Leverage = J($G,1,.)
 		mata: cv3block = J(k,$G,.)
 		
+		/*string for problem clusters*/
+		global probclust = ""
+		
 		forvalues g=1/$G {
 		
 			mata: left = XpX - X`g'pX`g' 
@@ -234,6 +247,16 @@ program define summclust, rclass
 			/*cv3*/
 			mata: betatemp = (beta :- beta`g')
 			mata: cv3block[.,`g'] = betatemp
+			
+			/*check betag*/
+			mata: st_numscalar("betag",beta`g'[1,1] )
+			mata: st_local("betag", strofreal(beta`g'[1,1]))
+			if inrange(`betag',-0.00000000001,0.00000000001) {
+			    local singclust =1
+				global probclust = "$probclust" + "`g'"
+			}  
+			
+			
 					
 		}
 		
@@ -263,8 +286,6 @@ program define summclust, rclass
 			
 		}
 	 
-
-		
 		/*partial leverage*/
 		qui reg xtilde t99* if temp_sample==1, noc
 		qui predict xtt if temp_sample==1, resid
@@ -414,9 +435,6 @@ program define summclust, rclass
 					mata: cnames[`f',1] = "`cnames'"
 				}
 				
-		
-		
-		
 		/****************************/
 		/*gstar option*/
 		/***************************/
@@ -584,6 +602,44 @@ program define summclust, rclass
 		disp " "
 		disp "Cluster summary statistics for $XTEMP when clustered by `cluster'."
 		disp "There are `numobs' observations within ${G} `cluster' clusters."
+		
+	
+		
+		/*singular clusters warning*/
+		if `singclust' == 1 {
+			mata problems = J(0,1,".")
+			global clustnames = ""
+			local numprob = 0
+			foreach problem in $probclust {
+				mata: problems = problems \ cnames[`problem',1]
+				local numprob = `numprob' + 1
+			}
+			
+			if `numprob' == 1 {
+				disp" "
+				disp as error "*********************************************************************"
+				disp "WARNING -  Beta undefined when one cluster is omitted"
+				disp "*********************************************************************"
+				disp "The coefficient on $XTEMP is undefined when one cluster is omitted."
+				disp "Since it is replaced by 0.00, the CV3 standard error is not meaningful."
+				disp "The problematic `cluster' cluster is:"
+				mata problems
+				disp" "
+				
+			}
+			
+			else {
+				disp" "
+				disp as error "*********************************************************************"
+				disp "WARNING -  Beta undefined when multiple clusters are omitted"
+				disp "*********************************************************************"
+				disp "The coefficient on $XTEMP is undefined when certain clusters are omitted."
+				disp "The are replaced by 0.00. The CV3 standard error is not meaningful."
+				disp "The problematic `cluster' cluster(s) are:"
+				mata problems
+				disp" "
+			}
+		}
 		
 		
 		if "`jackknife'"!="" {	
@@ -768,9 +824,6 @@ program define summclust, rclass
 				
 				disp as text ""
 				
-				*mata: bigtab = cnames, "scall"
-				
-				*mata: bigtab
 				mata: scall
 				
 			}
@@ -831,9 +884,10 @@ end
 /*--------------------------------------*/
 /* Change Log */
 /*--------------------------------------*/
-*1.0004 - mata cv table, CV3J addition, absorb check, return stuff
-*1.0005 - sample option, make gstar locals conditional
-*1.0006 - gstar1 caution, large table as matrix
-*1.0007 - geometric mean
-*1.0008 - absorb-jack conflict bug corrected
-*1.0009 - added version number for ssc submission
+*1.004 - mata cv table, CV3J addition, absorb check, return stuff
+*1.005 - sample option, make gstar locals conditional
+*1.006 - gstar1 caution, large table as matrix
+*1.007 - geometric mean
+*1.008 - absorb-jack conflict bug corrected
+*1.009 - added version number for ssc submission
+*1.010 - check for singularities and string cluster variable correction
