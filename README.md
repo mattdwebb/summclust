@@ -1,38 +1,340 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
 # summclust
-Stata module for cluster level measures of leverage, influence,  and a cluster jackknife variance estimator.
+
+Stata module for cluster level measures of leverage, influence, and a
+cluster jackknife variance estimator.
 
 For a very detailed description see:
 
-MacKinnon, J.G., Nielsen, M.Ø., Webb, M.D., 2022. Leverage, influence, and the jackknife
-in clustered regression models: Reliable inference using summclust. QED Working Paper 1483. Queen’s University.    
+MacKinnon, J.G., Nielsen, M.Ø., Webb, M.D., 2022. [Leverage, influence,
+and the jackknife in clustered regression models: Reliable inference
+using summclust](https://arxiv.org/abs/2205.03288). QED Working Paper
+1483. Queen’s University.
 
-nlswork example - using regress
+### nlswork example - using regress
 
-  . webuse nlswork, clear
-  
-  . reg ln_wage i.grade i.age i.birth_yr union race msp, cluster(ind)
+``` stata
+webuse nlswork, clear
+reg ln_wage i.grade i.age i.birth_yr union race msp, cluster(ind)
+Linear regression                               Number of obs     =     19,130
+                                                F(11, 11)         =          .
+                                                Prob > F          =          .
+                                                R-squared         =     0.2586
+                                                Root MSE          =     .40341
 
-nlswork - using summclust
+                              (Std. Err. adjusted for 12 clusters in ind_code)
+------------------------------------------------------------------------------
+             |               Robust
+     ln_wage |      Coef.   Std. Err.      t    P>|t|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+       grade |
+          1  |   .0949709   .1110648     0.86   0.411    -.1494811    .3394229
+          2  |   .1574972     .07174     2.20   0.050    -.0004015     .315396
+          3  |   .0071424   .0776591     0.09   0.928    -.1637841    .1780689
+          4  |    .048321    .124198     0.39   0.705    -.2250369    .3216789
+          5  |  -.0093878   .0976455    -0.10   0.925    -.2243041    .2055286
+          6  |  -.0233477    .117033    -0.20   0.846    -.2809356    .2342403
+          7  |  -.0270856   .1344865    -0.20   0.844    -.3230884    .2689172
+          8  |   .0772485   .0973295     0.79   0.444    -.1369723    .2914693
+          9  |   .2063691   .1054639     1.96   0.076    -.0257555    .4384937
+         10  |   .2089048   .0969343     2.16   0.054     -.004446    .4222557
+         11  |   .2681968   .0938847     2.86   0.016      .061558    .4748356
+         12  |    .391918   .0891081     4.40   0.001     .1957925    .5880435
+         13  |   .4690159   .0909032     5.16   0.000     .2689394    .6690924
+         14  |   .5943093   .0639765     9.29   0.000      .453498    .7351206
+         15  |   .7005432   .0846838     8.27   0.000     .5141554     .886931
+         16  |   .7144502   .0978463     7.30   0.000     .4990919    .9298085
+         17  |   .8038897   .0862272     9.32   0.000     .6141049    .9936746
+         18  |   .8480074   .0775912    10.93   0.000     .6772303    1.018784
+             |
+         age |
+         17  |   .1544614   .1501917     1.03   0.326    -.1761082     .485031
+         18  |   -.012546   .0736389    -0.17   0.868    -.1746241    .1495322
+         19  |   .0766397   .0701958     1.09   0.298    -.0778604    .2311397
+         20  |   .1616271   .0599139     2.70   0.021     .0297574    .2934968
+         21  |   .2084648   .0437577     4.76   0.001     .1121548    .3047748
+         22  |   .2320384   .0505445     4.59   0.001     .1207907    .3432862
+         23  |   .2508662   .0451288     5.56   0.000     .1515384     .350194
+         24  |   .2493872   .0535203     4.66   0.001     .1315899    .3671846
+         25  |   .2593777   .0564211     4.60   0.001     .1351957    .3835597
+         26  |   .3019871   .0404643     7.46   0.000     .2129258    .3910483
+         27  |   .2862161   .0591787     4.84   0.001     .1559647    .4164676
+         28  |   .2763825   .0533361     5.18   0.000     .1589905    .3937745
+         29  |   .2846101   .0544158     5.23   0.000     .1648417    .4043786
+         30  |    .280974   .0493201     5.70   0.000     .1724213    .3895267
+         31  |   .3381584   .0536215     6.31   0.000     .2201383    .4561785
+         32  |   .3236206   .0560527     5.77   0.000     .2002494    .4469917
+         33  |   .3364508    .050458     6.67   0.000     .2253935    .4475081
+         34  |   .3308951   .0487096     6.79   0.000     .2236859    .4381043
+         35  |   .3546038   .0620317     5.72   0.000      .218073    .4911346
+         36  |   .3475583   .0502099     6.92   0.000     .2370471    .4580695
+         37  |   .3578337   .0588213     6.08   0.000     .2283688    .4872985
+         38  |   .3596497   .0581484     6.19   0.000     .2316659    .4876334
+         39  |   .3763229   .0586549     6.42   0.000     .2472242    .5054215
+         40  |   .3916123   .0673561     5.81   0.000     .2433624    .5398621
+         41  |   .3801195   .0562978     6.75   0.000     .2562089      .50403
+         42  |   .3834389   .0644388     5.95   0.000     .2416101    .5252678
+         43  |   .3593093   .0691732     5.19   0.000     .2070602    .5115584
+         44  |   .3787578   .0642347     5.90   0.000     .2373781    .5201375
+         45  |   .5233848   .0813812     6.43   0.000      .344266    .7025037
+         46  |   .8361738   .1191845     7.02   0.000     .5738506    1.098497
+             |
+    birth_yr |
+         42  |  -.5925503   .1604747    -3.69   0.004    -.9457526    -.239348
+         43  |  -.6519249    .156765    -4.16   0.002    -.9969625   -.3068874
+         44  |  -.6134907   .1434571    -4.28   0.001    -.9292376   -.2977438
+         45  |   -.602273   .1572745    -3.83   0.003    -.9484317   -.2561142
+         46  |  -.6223417   .1622795    -3.83   0.003    -.9795164    -.265167
+         47  |  -.6068216   .1470403    -4.13   0.002     -.930455   -.2831881
+         48  |  -.5986161   .1548476    -3.87   0.003    -.9394333   -.2577988
+         49  |  -.5901986   .1553948    -3.80   0.003    -.9322203   -.2481769
+         50  |  -.5959531   .1483422    -4.02   0.002     -.922452   -.2694542
+         51  |   -.603689   .1498359    -4.03   0.002    -.9334755   -.2739025
+         52  |  -.6140537   .1570547    -3.91   0.002    -.9597287   -.2683787
+         53  |  -.5974615   .1571119    -3.80   0.003    -.9432625   -.2516605
+         54  |  -.6331601   .1801189    -3.52   0.005    -1.029599    -.236721
+             |
+       union |   .2039597   .0611675     3.33   0.007      .069331    .3385885
+        race |  -.0861981   .0161504    -5.34   0.000     -.121745   -.0506513
+         msp |  -.0275151    .009293    -2.96   0.013     -.047969   -.0070612
+       _cons |   1.675853   .1986813     8.43   0.000     1.238558    2.113148
+------------------------------------------------------------------------------
+```
 
-  . summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(ind)
+### nlswork - using summclust
 
-adding industry fixed effects using absorb
+``` stata
+summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(ind)
+SUMMCLUST - MacKinnon, Nielsen, and Webb
+ 
+Cluster summary statistics for msp when clustered by ind_code.
+There are 19130 observations within 12 ind_code clusters.
 
-  . summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(ind) cluster(ind)
+Regression Output
 
-sample restrictions - using sample
+  s.e. |      Coeff   Sd. Err.   t-stat  P value    CI-lower    CI-upper
+-------+----------------------------------------------------------------
+   CV1 |  -0.027515   0.009293  -2.9607   0.0130   -0.047970   -0.007061
+   CV3 |  -0.027515   0.014064  -1.9564   0.0763   -0.058470    0.003440
+------------------------------------------------------------------------
 
-  . summclust msp, yvar(ln_wage) xvar(union race i.grade) fevar(age birth_yr) sample(age>=25)
-            cluster(ind)
+Cluster Variability
 
-Effective Number of Clusters using gstar or rho.
+ Statistic |       Ng      Leverage     Partial L.  beta no g    
+-----------+-----------------------------------------------------
+       min |    38.00      0.093321       0.001622  -0.033200    
+        q1 |   159.00      0.672924       0.008649  -0.029275    
+    median |   995.50      3.515491       0.056682  -0.027765    
+      mean |  1594.17      5.416667       0.083333  -0.026920    
+        q3 |  2335.50      7.731883       0.120933  -0.025975    
+       max |  6335.00     20.289183       0.312995  -0.015835    
+-----------+-----------------------------------------------------
+   coefvar |     1.19      1.152965       1.141326   0.162898    
+```
 
-  . summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(ind) gstar
+### adding industry fixed effects using absorb
 
-  . summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(ind) rho(0.5)
+``` stata
+summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(ind) cluster(ind)
+SUMMCLUST - MacKinnon, Nielsen, and Webb
+ 
+Cluster summary statistics for msp when clustered by ind_code.
+There are 19130 observations within 12 ind_code clusters.
 
-All Output
+Regression Output
 
-  . summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(dubind)
-            cluster(ind) table svars jack rho(0.5)
+  s.e. |      Coeff   Sd. Err.   t-stat  P value    CI-lower    CI-upper
+-------+----------------------------------------------------------------
+   CV1 |  -0.020895   0.007084  -2.9494   0.0132   -0.036488   -0.005302
+   CV3 |  -0.020895   0.007931  -2.6345   0.0232   -0.038352   -0.003438
+------------------------------------------------------------------------
 
+Cluster Variability
+
+ Statistic |       Ng      Leverage     Partial L.  beta no g    
+-----------+-----------------------------------------------------
+       min |    38.00      0.087112       0.001561  -0.023382    
+        q1 |   159.00      0.656606       0.008621  -0.022428    
+    median |   995.50      3.442673       0.056073  -0.021258    
+      mean |  1594.17      5.333333       0.083333  -0.020770    
+        q3 |  2335.50      7.605927       0.121546  -0.020189    
+       max |  6335.00     20.011074       0.312377  -0.015001    
+-----------+-----------------------------------------------------
+   coefvar |     1.19      1.155829       1.141658   0.120094    
+```
+
+### sample restrictions - using sample
+
+``` stata
+summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) sample(age>=25) cluster(ind)
+SUMMCLUST - MacKinnon, Nielsen, and Webb
+ 
+Cluster summary statistics for msp when clustered by ind_code.
+There are 16051 observations within 12 ind_code clusters.
+
+Regression Output
+
+  s.e. |      Coeff   Sd. Err.   t-stat  P value    CI-lower    CI-upper
+-------+----------------------------------------------------------------
+   CV1 |  -0.032671   0.010880  -3.0030   0.0120   -0.056617   -0.008725
+   CV3 |  -0.032671   0.016872  -1.9364   0.0789   -0.069805    0.004464
+------------------------------------------------------------------------
+
+Cluster Variability
+
+ Statistic |       Ng      Leverage     Partial L.  beta no g    
+-----------+-----------------------------------------------------
+       min |    36.00      0.093861       0.001863  -0.039117    
+        q1 |   141.50      0.649689       0.009160  -0.034799    
+    median |   785.50      2.913140       0.054151  -0.032890    
+      mean |  1337.58      4.666667       0.083333  -0.031900    
+        q3 |  1887.00      5.894785       0.116090  -0.030803    
+       max |  5558.00     18.713255       0.325649  -0.018617    
+-----------+-----------------------------------------------------
+   coefvar |     1.22      1.206975       1.168060   0.164635    
+```
+
+### Effective Number of Clusters using gstar or rho.
+
+``` stata
+summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(ind) gstar
+
+summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(ind) rho(0.5)
+SUMMCLUST - MacKinnon, Nielsen, and Webb
+ 
+Cluster summary statistics for msp when clustered by ind_code.
+There are 19130 observations within 12 ind_code clusters.
+
+Regression Output
+
+  s.e. |      Coeff   Sd. Err.   t-stat  P value    CI-lower    CI-upper
+-------+----------------------------------------------------------------
+   CV1 |  -0.027515   0.009293  -2.9607   0.0130   -0.047970   -0.007061
+   CV3 |  -0.027515   0.014064  -1.9564   0.0763   -0.058470    0.003440
+------------------------------------------------------------------------
+
+Cluster Variability
+
+ Statistic |       Ng      Leverage     Partial L.  beta no g    
+-----------+-----------------------------------------------------
+       min |    38.00      0.093321       0.001622  -0.033200    
+        q1 |   159.00      0.672924       0.008649  -0.029275    
+    median |   995.50      3.515491       0.056682  -0.027765    
+      mean |  1594.17      5.416667       0.083333  -0.026920    
+        q3 |  2335.50      7.731883       0.120933  -0.025975    
+       max |  6335.00     20.289183       0.312995  -0.015835    
+-----------+-----------------------------------------------------
+   coefvar |     1.19      1.152965       1.141326   0.162898    
+ 
+Effective Number of Clusters
+-----------------------------
+G*(0)  =  5.469
+G*(1)  =  1.366
+-----------------------------
+
+
+
+SUMMCLUST - MacKinnon, Nielsen, and Webb
+ 
+Cluster summary statistics for msp when clustered by ind_code.
+There are 19130 observations within 12 ind_code clusters.
+
+Regression Output
+
+  s.e. |      Coeff   Sd. Err.   t-stat  P value    CI-lower    CI-upper
+-------+----------------------------------------------------------------
+   CV1 |  -0.027515   0.009293  -2.9607   0.0130   -0.047970   -0.007061
+   CV3 |  -0.027515   0.014064  -1.9564   0.0763   -0.058470    0.003440
+------------------------------------------------------------------------
+
+Cluster Variability
+
+ Statistic |       Ng      Leverage     Partial L.  beta no g    
+-----------+-----------------------------------------------------
+       min |    38.00      0.093321       0.001622  -0.033200    
+        q1 |   159.00      0.672924       0.008649  -0.029275    
+    median |   995.50      3.515491       0.056682  -0.027765    
+      mean |  1594.17      5.416667       0.083333  -0.026920    
+        q3 |  2335.50      7.731883       0.120933  -0.025975    
+       max |  6335.00     20.289183       0.312995  -0.015835    
+-----------+-----------------------------------------------------
+   coefvar |     1.19      1.152965       1.141326   0.162898    
+ 
+Effective Number of Clusters
+-----------------------------
+G*(0)  =  5.469
+G*(.5) =  1.421
+G*(1)  =  1.366
+-----------------------------
+```
+
+### All Output
+
+``` stata
+summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(ind) cluster(ind) table svars jack rho(0.5)
+SUMMCLUST - MacKinnon, Nielsen, and Webb
+ 
+Cluster summary statistics for msp when clustered by ind_code.
+There are 19130 observations within 12 ind_code clusters.
+
+Regression Output
+
+  s.e. |      Coeff   Sd. Err.   t-stat  P value    CI-lower    CI-upper
+-------+----------------------------------------------------------------
+   CV1 |  -0.020895   0.007084  -2.9494   0.0132   -0.036488   -0.005302
+   CV3 |  -0.020895   0.007931  -2.6345   0.0232   -0.038352   -0.003438
+  CV3J |  -0.020895   0.007921  -2.6381   0.0231   -0.038328   -0.003462
+------------------------------------------------------------------------
+
+Cluster Variability
+
+ Statistic |       Ng      Leverage     Partial L.  beta no g    
+-----------+-----------------------------------------------------
+       min |    38.00      0.087112       0.001561  -0.023382    
+        q1 |   159.00      0.656606       0.008621  -0.022428    
+    median |   995.50      3.442673       0.056073  -0.021258    
+      mean |  1594.17      5.333333       0.083333  -0.020770    
+        q3 |  2335.50      7.605927       0.121546  -0.020189    
+       max |  6335.00     20.011074       0.312377  -0.015001    
+-----------+-----------------------------------------------------
+   coefvar |     1.19      1.155829       1.141658   0.120094    
+ 
+Effective Number of Clusters
+-----------------------------
+G*(0)  =  5.468
+-----------------------------
+G*(rho) and G*(1) are not available.
+There are fixed effects at the cluster or subcluster level.
+
+Alternative Sample Means and Ratios to Arithmetic Mean
+
+                |          Ng       Leverage  Partial L.  beta no g    
+----------------+------------------------------------------------------
+  Harmonic Mean |     227.315       0.644626    0.010404          .    
+ Harmonic Ratio |       0.143       0.120867    0.124846          .    
+ Geometric Mean |     687.061       2.334997    0.035552          .    
+Geometric Ratio |       0.431       0.437812    0.426622          .    
+ Quadratic Mean |    2413.502       7.954736    0.123456   0.020907    
+Quadratic Ratio |       1.514       1.491513    1.481475  -1.006589    
+-----------------------------------------------------------------------
+
+Cluster by Cluster Statistics
+
+  ind_code |       Ng      Leverage     Partial L.  beta no g    
+-----------+-----------------------------------------------------
+         1 |      130      0.592119       0.005974  -0.021222    
+         2 |       38      0.087112       0.001561  -0.021028    
+         3 |      185      0.721093       0.009621  -0.021496    
+         4 |     3747     13.514215       0.201461  -0.015001    
+         5 |     1069      3.346972       0.060079  -0.023382    
+         6 |     2912     10.224230       0.151294  -0.021295    
+         7 |     1759      4.987623       0.091798  -0.019349    
+         8 |      572      2.773414       0.027859  -0.023240    
+         9 |      922      3.792664       0.052068  -0.021211    
+        10 |      133      0.411110       0.007621  -0.021984    
+        11 |     6335     20.011074       0.312377  -0.017157    
+        12 |     1328      3.538374       0.078286  -0.022872    
+-----------------------------------------------------------------
+```
