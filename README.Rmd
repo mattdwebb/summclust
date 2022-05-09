@@ -64,5 +64,5 @@ summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(
 
 ```{stata, echo=-1}
 webuse nlswork, clear
-summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(dubind) cluster(ind) table svars jack rho(0.5)
+summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(ind) cluster(ind) table svars jack rho(0.5)
 ```

@@ -273,11 +273,68 @@ G*(1)  =  1.366
 ### All Output
 
 ``` stata
-summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(dubind) cluster(ind) table svars jack rho(0.5)
-variable dubind not found
-(error in option absorb())
-r(111);
+summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(ind) cluster(ind) table svars jack rho(0.5)
+SUMMCLUST - MacKinnon, Nielsen, and Webb
+ 
+Cluster summary statistics for msp when clustered by ind_code.
+There are 19130 observations within 12 ind_code clusters.
 
-end of do-file
-r(111);
+Regression Output
+
+  s.e. |      Coeff   Sd. Err.   t-stat  P value    CI-lower    CI-upper
+-------+----------------------------------------------------------------
+   CV1 |  -0.020895   0.007084  -2.9494   0.0132   -0.036488   -0.005302
+   CV3 |  -0.020895   0.007931  -2.6345   0.0232   -0.038352   -0.003438
+  CV3J |  -0.020895   0.007921  -2.6381   0.0231   -0.038328   -0.003462
+------------------------------------------------------------------------
+
+Cluster Variability
+
+ Statistic |       Ng      Leverage     Partial L.  beta no g    
+-----------+-----------------------------------------------------
+       min |    38.00      0.087112       0.001561  -0.023382    
+        q1 |   159.00      0.656606       0.008621  -0.022428    
+    median |   995.50      3.442673       0.056073  -0.021258    
+      mean |  1594.17      5.333333       0.083333  -0.020770    
+        q3 |  2335.50      7.605927       0.121546  -0.020189    
+       max |  6335.00     20.011074       0.312377  -0.015001    
+-----------+-----------------------------------------------------
+   coefvar |     1.19      1.155829       1.141658   0.120094    
+ 
+Effective Number of Clusters
+-----------------------------
+G*(0)  =  5.468
+-----------------------------
+G*(rho) and G*(1) are not available.
+There are fixed effects at the cluster or subcluster level.
+
+Alternative Sample Means and Ratios to Arithmetic Mean
+
+                |          Ng       Leverage  Partial L.  beta no g    
+----------------+------------------------------------------------------
+  Harmonic Mean |     227.315       0.644626    0.010404          .    
+ Harmonic Ratio |       0.143       0.120867    0.124846          .    
+ Geometric Mean |     687.061       2.334997    0.035552          .    
+Geometric Ratio |       0.431       0.437812    0.426622          .    
+ Quadratic Mean |    2413.502       7.954736    0.123456   0.020907    
+Quadratic Ratio |       1.514       1.491513    1.481475  -1.006589    
+-----------------------------------------------------------------------
+
+Cluster by Cluster Statistics
+
+  ind_code |       Ng      Leverage     Partial L.  beta no g    
+-----------+-----------------------------------------------------
+         1 |      130      0.592119       0.005974  -0.021222    
+         2 |       38      0.087112       0.001561  -0.021028    
+         3 |      185      0.721093       0.009621  -0.021496    
+         4 |     3747     13.514215       0.201461  -0.015001    
+         5 |     1069      3.346972       0.060079  -0.023382    
+         6 |     2912     10.224230       0.151294  -0.021295    
+         7 |     1759      4.987623       0.091798  -0.019349    
+         8 |      572      2.773414       0.027859  -0.023240    
+         9 |      922      3.792664       0.052068  -0.021211    
+        10 |      133      0.411110       0.007621  -0.021984    
+        11 |     6335     20.011074       0.312377  -0.017157    
+        12 |     1328      3.538374       0.078286  -0.022872    
+-----------------------------------------------------------------
 ```
