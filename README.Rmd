@@ -21,12 +21,15 @@ Stata module for cluster level measures of leverage, influence,  and a cluster j
 
 For a very detailed description see:
 
-MacKinnon, J.G., Nielsen, M.Ø., Webb, M.D., 2022. [Leverage, influence, and the jackknife in clustered regression models: Reliable inference using summclust](https://arxiv.org/abs/2205.03288). QED Working Paper 1483. Queen’s University.    
+MacKinnon, J.G., Nielsen, M.Ø., Webb, M.D., 2022. [Leverage, influence,
+and the Jackknife in Clustered Regression Models: Reliable Inference
+Using Summclust](https://arxiv.org/abs/2205.03288). Stata Journal (accepted).    
 
 ### nlswork example - using regress
 
 ```{stata}
 webuse nlswork, clear
+keep if inrange(age,20,40)
 reg ln_wage i.grade i.age i.birth_yr union race msp, cluster(ind)
 ```
 
@@ -34,35 +37,33 @@ reg ln_wage i.grade i.age i.birth_yr union race msp, cluster(ind)
 
 ```{stata, echo=-1}
 webuse nlswork, clear
-summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(ind)
+keep if inrange(age,20,40)
+summclust ln_wage msp union race, fevar(grade age birth_yr) cluster(ind)
 ```
 
 ### adding industry fixed effects using absorb
 
 ```{stata, echo=-1}
 webuse nlswork, clear
-summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(ind) cluster(ind)
+keep if inrange(age,20,40)
+summclust ln_wage msp union race, fevar(grade age birth_yr)     absorb(ind) cluster(ind) nog 
 ```
   
-### sample restrictions - using sample
-
-```{stata, echo=-1}
-webuse nlswork, clear
-summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) sample(age>=25) cluster(ind)
-```
             
 ### Effective Number of Clusters using gstar or rho.
 
 ```{stata, echo=-1}
 webuse nlswork, clear
-summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(ind) gstar
+keep if inrange(age,20,40)
+summclust ln_wage msp union race, fevar(grade age birth_yr) cluster(ind) nog gstar
 
-summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) cluster(ind) rho(0.5)
+summclust ln_wage msp union race, fevar(grade age birth_yr) cluster(ind) nog rho(0.5)
 ```
   
 ### All Output
 
 ```{stata, echo=-1}
 webuse nlswork, clear
-summclust msp, yvar(ln_wage) xvar(union race) fevar(grade age birth_yr) absorb(ind) cluster(ind) table svars jack rho(0.5)
+keep if inrange(age,20,40)
+summclust ln_wage msp union race, fevar(grade age birth_yr) cluster(ind)  regtable rho(0.5) addmeans table 
 ```
