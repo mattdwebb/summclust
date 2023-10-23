@@ -1,0 +1,31 @@
+d 'SUMMCLUST': Stata module to compute cluster level measures of leverage, influence, and a
+d cluster jackknife variance estimator
+d
+d summclust is a stand alone command that summarizes cluster variability and calculates a cluster 
+d jackknife variance estimator. MacKinnon, Nielsen, and Webb (2022) documents it more fully than 
+d this help file. The command will calculate measures of cluster level influence and leverage.  
+d It will optionally calculate the effective number of clusters. By default it estimates CV_1  
+d and CV_3 standard errors, it will optionally estimate a CV_3J standard error. Finally, it will 
+d optionally calculate additional measures of cluster level heterogeneity.
+d 
+d 
+d KW: summclust
+d KW: clustered data
+d KW: cluster-robust variance estimator
+d KW: CRVE 
+d KW: grouped data
+d KW: high-leverage clusters
+d KW: influential clusters 
+d KW: jackknife
+d KW: partial leverage 
+d KW: robust inference
+d
+d 
+d Requires Stata version 13
+d 
+d Author: Matthew D Webb
+d Support: matthewdwebb@gmail.com
+d 
+d 
+f summclust.ado
+f summclust.sthlp 
