@@ -2,4 +2,4 @@ v 3
 
 d GitHub repository for archiving and developing summclust, by Matthew D. Webb
 
-p summclust summclust package
+p summclust package
