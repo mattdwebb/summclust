@@ -1,7 +1,7 @@
 /*------------------------------------*/
 /*summclust */
 /*written by Matt Webb */
-/*version 4.210 2023-06-06 */
+/*version 4.22 2024-07-15 */
 /*------------------------------------*/
 version 13
 
@@ -1245,8 +1245,9 @@ program define summclust, rclass
 				}
 
 				if `rtrows' <= 50 {
+					
 					local rspecreg: display "-" _dup(`rtrows') "&" "-"
-
+					
 					matlist regresstab, title(Linear Regression -- CV3) rowtitle(`yvar') ///
 					cspec(& %-12s w6 | %9.6f w10 & %9.6f & %6.4f w7 & %6.4f w7 & %9.6f w10 & %9.6f w10 &) ///
 					rspec(`rspecreg')
@@ -1306,8 +1307,8 @@ program define summclust, rclass
 					if `rtrows' <= 50 {
 						local rspecreg: display "-" _dup(`rtrows') "&" "-"
 											
-						matlist
-						regresstabdrop, title(Linear Regression -- CV3 -- Omitting Singular Omit-One-Cluster Subsamples) rowtitle(`yvar') ///
+						matlist regresstabdrop, title(Linear Regression -- CV3 -- Omitting Singular Omit-One-Cluster Subsamples) ///
+						rowtitle(`yvar') ///
 						cspec(& %-12s w6 | %9.6f w10 & %9.6f & %6.4f w7 & %6.4f w7 & %9.6f w10 & %9.6f w10 &) ///
 						rspec(`rspecreg')
 					}
@@ -1365,10 +1366,11 @@ program define summclust, rclass
 					}
 									
 					if `rtrows' <= 50 {
+						
 						local rspecreg: display "-" _dup(`rtrows') "&" "-"
 
-						matlist
-						regresstabdrop, title(Linear Regression -- CV3 -- Omitting Singular Omit-One-Cluster Subsamples) rowtitle(`yvar') ///
+						matlist regresstabdrop, title(Linear Regression -- CV3 -- Omitting Singular Omit-One-Cluster Subsamples) ///
+						rowtitle(`yvar') ///
 						cspec(& %-12s w6 | %9.6f w10 & %9.6f & %6.4f w7 & %6.4f w7 & %9.6f w10 & %9.6f w10 &) ///
 						rspec(`rspecreg')
 					}
@@ -1560,3 +1562,4 @@ end
 *4.204 - several fixes
 *4.208 - cleaned up singular clusters warnings
 *4.210 - remove Lg from output when absorb not properly used
+*4.22 - regtable bug
