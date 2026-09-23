@@ -1,0 +1,9 @@
+* text=auto
+*.ado text eol=lf
+*.sthlp text eol=lf
+*.do text eol=lf
+*.pkg text eol=lf
+*.toc text eol=lf
+*.md text eol=lf
+*.Rmd text eol=lf
+*.ps1 text eol=lf

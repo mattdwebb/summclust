@@ -2,68 +2,67 @@
 output: github_document
 ---
 
-<!-- README.md is generated from README.Rmd. Please edit that file -->
-
-```{r setup, include = F}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  fig.path = "man/figures/README-",
-  out.width = "100%"
-)
-# devtools::install_github("Hemken/Statamarkdown")
-library(Statamarkdown)
-```
-
 # summclust
 
-Stata module for cluster level measures of leverage, influence,  and a cluster jackknife variance estimator.
+Stata diagnostics and inference for linear regression with one-way or two-way clustering.
+Version **5.1.1**, 23 September 2026. Authors: James G. MacKinnon, Morten O. Nielsen, and Matthew D. Webb.
 
-For a very detailed description see:
+This development release integrates the native two-way implementation with the existing one-way command. It has passed six certification suites on StataNow/SE 18.5 for Windows. It declares Stata 13 compatibility; older Stata releases have not been independently tested in this integration.
 
-MacKinnon, J.G., Nielsen, M.Ø., Webb, M.D., 2022. [Leverage, influence,
-and the Jackknife in Clustered Regression Models: Reliable Inference
-Using Summclust](https://arxiv.org/abs/2205.03288). Stata Journal (accepted).    
+## Install from a local copy
 
-### nlswork example - using regress
+Extract or clone the package, then point Stata at its `Stata` subdirectory:
 
-```{stata}
-webuse nlswork, clear
-keep if inrange(age,20,40)
-reg ln_wage i.grade i.age i.birth_yr union race msp, cluster(ind)
+```stata
+net install summclust, from("C:/path/to/summclust/Stata") replace
+discard
+which summclust
+help summclust
 ```
 
-### nlswork - using summclust
+`which summclust` should show version 5.1.1. An ado file in the current working directory or earlier on `adopath` can shadow an installed copy. The package contains `summclust`, its help file, and the compatibility command `twowayjack` with its help file. It uses built-in Stata/Mata functions without other ado dependencies.
 
-```{stata, echo=-1}
-webuse nlswork, clear
-keep if inrange(age,20,40)
-summclust ln_wage msp union race, fevar(grade age birth_yr) cluster(ind)
+## Use
+
+The first variable is the outcome, the second is the focal regressor, and the remaining variables are controls. Supply at least one control. Factor-variable notation is not accepted in this varlist; use explicit indicators or `fevar()`.
+
+```stata
+summclust y treatment control, cluster(firm) nograph
+summclust y treatment control, cluster(firm year) nograph
+summclust y treatment control, cluster(firm year) fevar(firm year) rankcheck nograph
 ```
 
-### adding industry fixed effects using absorb
+Two-way mode computes the G, H, and nonempty intersection components of CV1 and uncentered CV3. It returns the conventional covariance `V_G + V_H - V_I`, including negative diagonal entries when they occur. Displayed focal inference uses the largest of the conventional, G, and H variances with `min(G,H)-1` degrees of freedom. This scalar rule does not define a joint covariance matrix.
 
-```{stata, echo=-1}
-webuse nlswork, clear
-keep if inrange(age,20,40)
-summclust ln_wage msp union race, fevar(grade age birth_yr)     absorb(ind) cluster(ind) nog 
+Useful two-way results include `r(b)`, `r(cv1_conventional)`, `r(cv3_conventional)`, `r(cv1_max_se)`, `r(cv3_max_se)`, and the component and diagnostic matrices documented in `help summclust`. Explicit tie masks identify all components attaining the maximum within a relative tolerance of 1e-10.
+
+Use `sample(expression)` for restrictions. `twowayjack` is now a thin delegate to the native command and also accepts `if` and `in`.
+
+## Scope and behavior
+
+- Default CV3 is the uncentered delete-cluster estimator. The `jackknife` option requests centered CV3J in one-way mode; it is intentionally rejected in two-way mode.
+- For two-way `absorb()`, every absorbed group must be nested inside a G-H intersection. Use `fevar()` for crossed fixed effects.
+- Native two-way estimation rejects full or deleted models in which the focal slope is not numerically identified. Rank loss affecting only nuisance coefficients remains allowed.
+- One-way mode retains the historical near-zero-coefficient flag and dropped-subsample policy for compatibility; `rankcheck` supplies actual numerical rank diagnostics. These are separate concepts.
+- Partial leverage corrects a bug in 4.22. Version 5.1.1 also preserves double-precision outcomes and corrects absorbed-model CV1 degrees of freedom. Results may therefore differ from old releases.
+- Native two-way calls use private temporary Mata objects. The legacy one-way path still exposes working Mata objects, as documented in the audit.
+
+See [CHANGELOG.md](CHANGELOG.md) and [the integration audit](docs/AUDIT_2026-09-23.md) for the changes, checks, and limitations.
+
+## Reproduce the checks
+
+On Windows, run from PowerShell:
+
+```powershell
+./tests/run_tests.ps1 -StataExe 'C:/Program Files/Stata18/StataSE-64.exe'
 ```
-  
-            
-### Effective Number of Clusters using gstar or rho.
 
-```{stata, echo=-1}
-webuse nlswork, clear
-keep if inrange(age,20,40)
-summclust ln_wage msp union race, fevar(grade age birth_yr) cluster(ind) nog gstar
+The runner copies the package and test scripts to a new temporary directory, runs all six suites, and prints its log directory. It checks actual success markers because Stata batch exit codes alone do not reliably detect do-file errors. Local installation is tested in an isolated PLUS directory.
 
-summclust ln_wage msp union race, fevar(grade age birth_yr) cluster(ind) nog rho(0.5)
-```
-  
-### All Output
+On other platforms, copy `Stata/*` and `tests/*.do` to a scratch directory and run the six do-files listed in `tests/run_tests.ps1` from there. The PowerShell runner itself is Windows-specific.
 
-```{stata, echo=-1}
-webuse nlswork, clear
-keep if inrange(age,20,40)
-summclust ln_wage msp union race, fevar(grade age birth_yr) cluster(ind)  regtable rho(0.5) addmeans table 
-```
+## Background and license
+
+MacKinnon, Nielsen, and Webb, [Leverage, Influence, and the Jackknife in Clustered Regression Models: Reliable Inference Using summclust](https://arxiv.org/abs/2205.03288).
+
+Distributed under the [MIT License](LICENSE).
