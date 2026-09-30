@@ -76,6 +76,33 @@ StataNow/SE 18.5; the declared Stata 13 minimum has not been independently teste
 {title:Native two-way clustering}
 
 {pstd}
+The 30 September 2026 development presentation revision restores the standalone
+{cmd:twowayjack} table layout. {it:Regression Output} reports {cmd:CV1max} and
+{cmd:CV3max}, with columns {it:Coeff}, {it:Sd. Err.}, {it:t-stat}, {it:P value},
+{it:CI-lower}, and {it:CI-upper}. Both intervals use the same min(G,H)-1 degrees
+of freedom as the p-values. The older standalone CV1 interval incorrectly used
+the intersection cluster count; that error is not reproduced.
+
+{pstd}
+{it:Coefficients of Variation, G, and G*} identifies the actual cluster variables
+and {cmd:intersect}. Its first four columns ({it:Ng}, {it:Leverage},
+{it:Partial L.}, {it:beta no g}) are coefficients of variation displayed to four
+decimals. G is an integer and Gstar is G*(0), displayed to two decimals.
+The historical widths are retained for short names. When long names cannot
+fit on the same row at the current line width, the complete name appears on
+the line immediately above its aligned values. Text and SMCL notes wrap at
+word boundaries. The tables are designed for line widths of at least 80.
+
+{pstd}
+Display formatting does not round or rename returned results. In particular,
+{cmd:r(dimsummary)} retains row names G H I and column names
+{cmd:cv_N cv_leverage cv_partlev cv_betanog clusters Gstar0}; their order maps to
+{cmd:r(cluster_g)}, {cmd:r(cluster_h)}, and their intersection. The native
+partial-leverage values use the focal regressor after projecting on all other
+regressors, including fixed effects. They need not match older erroneous
+standalone auxiliary regressions.
+
+{pstd}
 Specify two variables in {opt cluster()}, for example
 {cmd:cluster(firm year)}. The estimation sample and design are constructed
 once. The command computes separate one-way CV1 and CV3 component matrices for

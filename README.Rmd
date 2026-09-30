@@ -5,9 +5,9 @@ output: github_document
 # summclust
 
 Stata diagnostics and inference for linear regression with one-way or two-way clustering.
-Version **5.1.1**, 23 September 2026. Authors: James G. MacKinnon, Morten O. Nielsen, and Matthew D. Webb.
+Version **5.1.1**, with an unreleased presentation revision dated 30 September 2026. Authors: James G. MacKinnon, Morten O. Nielsen, and Matthew D. Webb.
 
-This development release integrates the native two-way implementation with the existing one-way command. It has passed six certification suites on StataNow/SE 18.5 for Windows. It declares Stata 13 compatibility; older Stata releases have not been independently tested in this integration.
+This development release integrates the native two-way implementation with the existing one-way command. The updated code has passed eight certification suites on StataNow/SE 18.5 for Windows. It declares Stata 13 compatibility; older Stata releases have not been independently tested in this integration.
 
 ## Install from a local copy
 
@@ -47,7 +47,7 @@ Use `sample(expression)` for restrictions. `twowayjack` is now a thin delegate t
 - Partial leverage corrects a bug in 4.22. Version 5.1.1 also preserves double-precision outcomes and corrects absorbed-model CV1 degrees of freedom. Results may therefore differ from old releases.
 - Native two-way calls use private temporary Mata objects. The legacy one-way path still exposes working Mata objects, as documented in the audit.
 
-See [CHANGELOG.md](CHANGELOG.md) and [the integration audit](docs/AUDIT_2026-09-23.md) for the changes, checks, and limitations.
+See [CHANGELOG.md](CHANGELOG.md), [the integration audit](docs/AUDIT_2026-09-23.md), and [the output audit](docs/AUDIT_OUTPUT_2026-09-30.md) for the changes, checks, and limitations.
 
 ## Reproduce the checks
 
@@ -57,9 +57,9 @@ On Windows, run from PowerShell:
 ./tests/run_tests.ps1 -StataExe 'C:/Program Files/Stata18/StataSE-64.exe'
 ```
 
-The runner copies the package and test scripts to a new temporary directory, runs all six suites, and prints its log directory. It checks actual success markers because Stata batch exit codes alone do not reliably detect do-file errors. Local installation is tested in an isolated PLUS directory.
+The runner copies the package and test scripts to a new temporary directory, runs all eight suites and checks plain-text and rendered SMCL output, and prints its log directory. It checks actual success markers because Stata batch exit codes alone do not reliably detect do-file errors. Local installation is tested in an isolated PLUS directory.
 
-On other platforms, copy `Stata/*` and `tests/*.do` to a scratch directory and run the six do-files listed in `tests/run_tests.ps1` from there. The PowerShell runner itself is Windows-specific.
+On other platforms, copy `Stata/*` and `tests/*.do` to a scratch directory and run the eight do-files listed in `tests/run_tests.ps1` from there. The PowerShell runner itself is Windows-specific.
 
 ## Background and license
 

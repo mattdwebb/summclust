@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased presentation revision — 2026-09-30
+
+- Restored the standalone twowayjack inference and diagnostic table layouts, headings, alignment, separators, cluster names and mixed numeric formats.
+- Retained correct min(G,H)-1 confidence intervals and independently verified focal partial leverage; no estimator or returned-result values changed.
+- Wrapped notes, warnings and input-error messages at word boundaries; preserved complete long cluster names at ordinary line widths.
+- Restored column headings in optional cluster and coefficient tables and made max selectors display the actual cluster names.
+- Added separate numerical and text/SMCL formatting checks, including long names, options, negative variances, ties and few-cluster warnings.
+- Independently checked the recovered nlswork specification, the available minimum-wage earnings extract, and seven tsetse outcomes. See `docs/AUDIT_OUTPUT_2026-09-30.md` for evidence, qualifications and commands.
+
 ## 5.1.1 development release — 2026-09-23
 
 - Integrated the native 5.1.0 two-way candidate into the main Stata package layout, including the thin `twowayjack` delegate and local installation metadata.

@@ -1,4 +1,5 @@
 *! version 5.1.1 23sep2026
+*! two-way presentation revision 30sep2026 (development)
 /*------------------------------------*/
 /*summclust */
 /*written by Matt Webb */
@@ -1208,13 +1209,13 @@ program define _summclust_twoway, rclass
 	syntax varlist(min=3), cluster(varlist min=2 max=2) [fevar(varlist) absorb(varname) gstar Rho(real -1) SAMple(string) TABle ADDmeans JACKknife REGtable NOGraph RANKcheck]
 
 	if `"`jackknife'"' != "" {
-		display as error "jackknife requests the centered CV3J estimator, which remains supported with one-way clustering."
-		display as error "Centered two-way CV3J is not studied in MacKinnon, Nielsen, and Webb and is deliberately not implemented; use native two-way CV3 instead."
+		display as error "{p 0 0 2}jackknife requests the centered CV3J estimator, which remains supported with one-way clustering.{p_end}"
+		display as error "{p 0 0 2}Centered two-way CV3J is not studied in MacKinnon, Nielsen, and Webb and is deliberately not implemented; use native two-way CV3 instead.{p_end}"
 		exit 198
 	}
 	local rho_specified = (`rho' != -1)
 	if `rho_specified' & !inrange(`rho',0.00001,1) {
-		display as error "rho() must be between 0 and 1."
+		display as error "{p 0 0 2}rho() must be between 0 and 1.{p_end}"
 		exit 198
 	}
 	if `rho' == -1 local rho = 0.1234567
@@ -1254,15 +1255,15 @@ program define _summclust_twoway, rclass
 	quietly summarize `idi' if `touse', meanonly
 	local I = r(max)
 	if `G' < 2 {
-		display as error "Two-way summclust requires at least two nonempty clusters in the first dimension (`clusterg'); found `G'."
+		display as error "{p 0 0 2}Two-way summclust requires at least two nonempty clusters in the first dimension (`clusterg'); found `G'.{p_end}"
 		exit 498
 	}
 	if `H' < 2 {
-		display as error "Two-way summclust requires at least two nonempty clusters in the second dimension (`clusterh'); found `H'."
+		display as error "{p 0 0 2}Two-way summclust requires at least two nonempty clusters in the second dimension (`clusterh'); found `H'.{p_end}"
 		exit 498
 	}
 	if `I' < 2 {
-		display as error "Two-way summclust requires at least two nonempty G-H intersections; found `I'."
+		display as error "{p 0 0 2}Two-way summclust requires at least two nonempty G-H intersections; found `I'.{p_end}"
 		exit 498
 	}
 
@@ -1300,8 +1301,8 @@ program define _summclust_twoway, rclass
 		quietly summarize `sdh' if `touse', meanonly
 		if `badg' > 1e-10 | r(max) > 1e-10 {
 			quietly sort `order'
-			display as error "absorb() groups must be nested within both clustering dimensions for native two-way CV3."
-			display as error "Use fevar() for fixed effects that cross either clustering dimension."
+			display as error "{p 0 0 2}absorb() groups must be nested within both clustering dimensions for native two-way CV3.{p_end}"
+			display as error "{p 0 0 2}Use fevar() for fixed effects that cross either clustering dimension.{p_end}"
 			exit 198
 		}
 	}
@@ -1369,7 +1370,7 @@ program define _summclust_twoway, rclass
 		capture mata: mata drop `TWAB'
 		capture mata: mata drop `TWABINFO'
 		capture mata: mata drop `TWX'
-		display as error "Residual degrees of freedom are not positive after fixed effects."
+		display as error "{p 0 0 2}Residual degrees of freedom are not positive after fixed effects.{p_end}"
 		exit 2001
 	}
 
@@ -1438,37 +1439,95 @@ program define _summclust_twoway, rclass
 	local cv3lci = `tw_beta'-`crit'*`tw_cv3se'
 	local cv3uci = `tw_beta'+`crit'*`tw_cv3se'
 
-	display as text _newline "Native two-way cluster variance estimation"
-	display as text "Clustering: G=" as result "`clusterg'" as text " (" as result %8.0f `G' as text "), H=" as result "`clusterh'" as text " (" as result %8.0f `H' as text "), intersections=" as result %8.0f `I'
-	display as text "Inference df = min(G,H) - 1 = " as result %8.0f `df'
-	if `"`clusterg'"' == `"`clusterh'"' display as text "note: the clustering dimensions are identical; conventional two-way results reduce to one-way clustering."
-	if min(`G',`H') == 2 display as error "warning: only two clusters occur in the smaller dimension; inference uses 1 degree of freedom and may be unreliable."
-	display as text ""
-	display as text "Focal inference using MacKinnon-Nielsen-Webb max standard errors"
-	display as text %9s "s.e." " |" %11s "Coefficient" %11s "Std. err." %9s "t" %9s "P>|t|" %11s "[95% conf." %11s "interval]"
-	display as text "----------+-----------------------------------------------------------------"
-	display as text %9s "CV1 max" " |" as result %11.6f `tw_beta' %11.6f `tw_cv1se' %9.4f `cv1t' %9.4f `cv1p' %11.6f `cv1lci' %11.6f `cv1uci'
-	display as text %9s "CV3 max" " |" as result %11.6f `tw_beta' %11.6f `tw_cv3se' %9.4f `cv3t' %9.4f `cv3p' %11.6f `cv3lci' %11.6f `cv3uci'
-	display as text "----------+-----------------------------------------------------------------"
-	display as text "Max selectors: CV1=" as result "`tw_cv1which'" as text "; CV3=" as result "`tw_cv3which'"
+
+	/* Keep the standalone twowayjack table specifications. Display copies
+	   protect the names and full precision of the public result matrices. */
+	tempname inference showsum showreg showg showh
+	matrix `inference' = (`tw_beta',`tw_cv1se',`cv1t',`cv1p',`cv1lci',`cv1uci' \ `tw_beta',`tw_cv3se',`cv3t',`cv3p',`cv3lci',`cv3uci')
+	matrix colnames `inference' = "Coeff" "Sd. Err." "t-stat" "P value" CI-lower CI-upper
+	matrix rownames `inference' = CV1max CV3max
+	matrix `showsum' = `dsum'
+	matrix colnames `showsum' = Ng Leverage "Partial L." "beta no g" G Gstar
+	matrix rownames `showsum' = `clusterg' `clusterh' intersect
+
+	display as text _newline _newline "SUMMCLUST"
+	display as text "{p 0 11 2}Reference: James G. MacKinnon, Morten O. Nielsen, and Matthew D. Webb{p_end}"
+	display as text "           Jackknife inference with two-way clustering"
+	display as text _newline "Two-way cluster jackknife variance estimation."
+	display as text "{p 0 0 2}Cluster summary statistics for `xvar' when clustered by `clusterg' and `clusterh'.{p_end}"
+	matlist `inference', title(Regression Output) rowtitle(s.e.) ///
+		cspec(& %-4s w8 | %9.6f w10 & %9.6f & %6.4f w7 & %6.4f w7 & %9.6f w10 & %9.6f w10 &) rspec("&|&|")
+
+	/* At ordinary widths retain the historical 76-column table. Long names
+	   get their own complete label line, followed by an aligned numeric row. */
+	local labelwidth = max(10,strlen("`clusterg'"),strlen("`clusterh'"))
+	if `labelwidth'+66 <= c(linesize) {
+		matlist `showsum', title(Coefficients of Variation, G, and G*) rowtitle(dimension) ///
+			cspec(& %-4s w`labelwidth' | %7.4f w8 & %7.4f w9 & %7.4f w10 & %7.4f w10 & %6.0f w7 & %8.2f w9 &) rspec("&|&&|")
+	}
+	else {
+		display as text _newline "Coefficients of Variation, G, and G*" _newline
+		display as text " dimension |       Ng   Leverage  Partial L.   beta no g        G      Gstar"
+		display as text "{hline 11}{c +}{hline 64}"
+		forvalues row=1/3 {
+			local label : word `row' of `clusterg' `clusterh' intersect
+			if strlen("`label'")>10 {
+				display as text " `label'"
+				local label ""
+			}
+			display as text %10s "`label'" " {c |}" as result %9.4f el(`showsum',`row',1) %11.4f el(`showsum',`row',2) %12.4f el(`showsum',`row',3) %12.4f el(`showsum',`row',4) %9.0f el(`showsum',`row',5) %11.2f el(`showsum',`row',6)
+		}
+		display as text "{hline 76}"
+	}
+
+	display as text "{p 0 0 2}Inference: t(`df') with df = min(G,H)-1; 95% confidence intervals.{p_end}"
+	local cv1label "`tw_cv1which'"
+	local cv3label "`tw_cv3which'"
+	if "`cv1label'"=="G" local cv1label "`clusterg'"
+	if "`cv1label'"=="H" local cv1label "`clusterh'"
+	if "`cv3label'"=="G" local cv3label "`clusterg'"
+	if "`cv3label'"=="H" local cv3label "`clusterh'"
+	display as text "{p 0 0 2}Max selectors: CV1=`cv1label'; CV3=`cv3label'.{p_end}"
+	if `tw_cv1ties'!=1 & `tw_cv1ties'!=2 & `tw_cv1ties'!=4 display as text "{p 0 0 2}Note: CV1 maximum components are tied; see r(cv1max_ties).{p_end}"
+	if `tw_cv3ties'!=1 & `tw_cv3ties'!=2 & `tw_cv3ties'!=4 display as text "{p 0 0 2}Note: CV3 maximum components are tied; see r(cv3max_ties).{p_end}"
 	display as text "Conventional focal CV1: variance=" as result %11.6f `cv1_conventional_var' as text "  s.e.=" as result %11.6f `cv1_conventional_se'
 	display as text "Conventional focal CV3: variance=" as result %11.6f `cv3_conventional_var' as text "  s.e.=" as result %11.6f `cv3_conventional_se'
-	if `cv1_conventional_var' < 0 display as error "warning: the conventional two-way CV1 focal variance is negative; its conventional standard error is undefined. MNW max inference remains available."
-	if `cv3_conventional_var' < 0 display as error "warning: the conventional two-way CV3 focal variance is negative; its conventional standard error is undefined. MNW max inference remains available."
-	display as text "Conventional matrices use V_G + V_H - V_intersection and are not used for the max-se inference above."
-	matlist `dsum', names(rows) format(%8.3f) title("Dimension-specific diagnostics")
+	display as text "{p 0 0 2}Conventional matrices use V_G + V_H - V_intersection. The inference table uses max standard errors, not these matrices.{p_end}"
+	if `cv1_conventional_var' < 0 display as error "{p 0 0 2}Warning: conventional two-way CV1 focal variance is negative; its standard error is undefined. Max inference remains available.{p_end}"
+	if `cv3_conventional_var' < 0 display as error "{p 0 0 2}Warning: conventional two-way CV3 focal variance is negative; its standard error is undefined. Max inference remains available.{p_end}"
+	if `"`clusterg'"' == `"`clusterh'"' display as text "{p 0 0 2}Note: the dimensions are identical; conventional two-way results reduce to one-way clustering.{p_end}"
+	if min(`G',`H') == 2 display as error "{p 0 0 2}Warning: only two clusters occur in the smaller dimension; inference uses 1 degree of freedom and may be unreliable.{p_end}"
 	if `"`table'"' != "" {
-		if `G' <= 52 matlist `tabg', names(rows) format(%10.4f) title("Cluster diagnostics: G = `clusterg' (sorted cluster order)")
-		else display as text "note: G-level table suppressed because `clusterg' has more than 52 clusters; use r(table_g)."
-		if `H' <= 52 matlist `tabh', names(rows) format(%10.4f) title("Cluster diagnostics: H = `clusterh' (sorted cluster order)")
-		else display as text "note: H-level table suppressed because `clusterh' has more than 52 clusters; use r(table_h)."
-		display as text "note: intersection-level detail is not printed; use the *_intersection matrices in r()."
+		foreach dim in g h {
+			local count = cond("`dim'"=="g",`G',`H')
+			local label = cond("`dim'"=="g","`clusterg'","`clusterh'")
+			if `count'<=52 {
+				matrix `show`dim'' = `tab`dim''
+				matrix colnames `show`dim'' = Ng Leverage "Partial L." "beta no g"
+				display as text _newline "{p 0 0 2}Cluster diagnostics: `label' (sorted cluster order){p_end}"
+				local rowspec = "&|" + (`count'-1)*"&" + "|"
+				matlist `show`dim'', rowtitle(cluster) cspec(& %8s | %8.0f & %10.4f & %10.4f & %11.6f &) rspec("`rowspec'")
+			}
+			else display as text "{p 0 0 2}Note: the `label' table has more than 52 clusters; use r(table_`dim').{p_end}"
+		}
+		display as text "{p 0 0 2}Note: intersection detail is available in the *_intersection matrices in r().{p_end}"
 	}
-	if `"`regtable'"' != "" matlist `regsum', names(rows) format(%11.6f) title("Coefficient-wise MNW max standard errors; df=min(G,H)-1 (not a covariance matrix)")
-	if `"`addmeans'"' != "" display as text "note: addmeans has no additional effect for the two-way dimension summary."
-	if `"`nograph'"' == "" display as text "note: two-way diagnostic graphs are not drawn; use the dimension-specific diagnostic matrices in r()."
+	if `"`regtable'"' != "" {
+		matrix `showreg' = `regsum'
+		matrix colnames `showreg' = Coeff CV1max CV3max
+		local coefwidth = 11
+		foreach name of local coefnames {
+			local coefwidth = max(`coefwidth',strlen("`name'"))
+		}
+		display as text _newline "Coefficient-wise max standard errors"
+		local rowspec = "&|" + (rowsof(`showreg')-1)*"&" + "|"
+		matlist `showreg', rowtitle(variable) cspec(& %`coefwidth's | %11.6f & %11.6f & %11.6f &) rspec("`rowspec'")
+		display as text "{p 0 0 2}Note: CV1max and CV3max are standard errors, not a joint covariance matrix.{p_end}"
+	}
+	if `"`addmeans'"' != "" display as text "{p 0 0 2}Note: addmeans has no additional effect on the two-way summary.{p_end}"
+	if `"`nograph'"' == "" display as text "{p 0 0 2}Note: two-way diagnostic graphs are not drawn; use the dimension-specific diagnostic matrices in r().{p_end}"
 	if `"`rankcheck'"' != "" & (`tw_rankfail_g'+`tw_rankfail_h'+`tw_rankfail_i')>0 {
-		display as error "warning: rankcheck found rank-deficient omit-one subsamples: G=`tw_rankfail_g', H=`tw_rankfail_h', I=`tw_rankfail_i'."
+		display as error "{p 0 0 2}Warning: rankcheck found rank-deficient omit-one subsamples: `clusterg'=`tw_rankfail_g', `clusterh'=`tw_rankfail_h', intersect=`tw_rankfail_i'.{p_end}"
 	}
 
 	return matrix b = `b'

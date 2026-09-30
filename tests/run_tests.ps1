@@ -16,6 +16,8 @@ $suites = @(
     'certify_summclust_twoway_api',
     'certify_twowayjack_delegate',
     'certify_integration',
+    'certify_output_numerics',
+    'certify_output_format',
     'verify_net_install_twoway'
 )
 foreach ($suite in $suites) {
@@ -31,4 +33,5 @@ foreach ($suite in $suites) {
     }
     Write-Output "PASS $suite"
 }
-Write-Output "All six suites passed. Logs: $testRoot"
+& (Join-Path $PSScriptRoot 'check_output_format.ps1') -LogDirectory $testRoot
+Write-Output "All eight suites and text/SMCL formatting checks passed. Logs: $testRoot"
