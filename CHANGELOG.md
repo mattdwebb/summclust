@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased mixed estimator — 2026-10-30
+
+- Added explicit, default-off `mixed` for two-way CV31 = CV3_G + CV3_H - CV1_I, with separate conventional and max-adjusted inference returns.
+- Skip intersection delete-one coefficient solves and mark their uncomputed diagnostics missing; preserve ordinary defaults and version numbers.
+- Include the base-R and NumPy implementations and portable mixed certification with synthetic cross-language fixtures.
+
 ## Unreleased presentation revision — 2026-09-30
 
 - Restored the standalone twowayjack inference and diagnostic table layouts, headings, alignment, separators, cluster names and mixed numeric formats.

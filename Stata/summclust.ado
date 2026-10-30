@@ -13,9 +13,13 @@ cap program drop summclust
 program define summclust, rclass
 
 	local __summclust_cmdline `"`0'"'
-	syntax varlist(min=3), cluster(varlist min=1 max=2) [fevar(varlist) absorb(varname) gstar  Rho(real -1) SAMple(string)  TABle ADDmeans JACKknife REGtable NOGraph RANKcheck]
+	syntax varlist(min=3), cluster(varlist min=1 max=2) [fevar(varlist) absorb(varname) gstar  Rho(real -1) SAMple(string)  TABle ADDmeans JACKknife REGtable NOGraph RANKcheck mixed]
 
 	local __summclust_ncluster : word count `cluster'
+	if "`mixed'" != "" & `__summclust_ncluster' != 2 {
+		display as error "mixed requires two clustering dimensions."
+		exit 198
+	}
 	if `__summclust_ncluster' == 2 {
 		_summclust_twoway `__summclust_cmdline'
 		return add
@@ -1206,7 +1210,14 @@ end
 capture program drop _summclust_twoway
 program define _summclust_twoway, rclass
 	version 13
-	syntax varlist(min=3), cluster(varlist min=2 max=2) [fevar(varlist) absorb(varname) gstar Rho(real -1) SAMple(string) TABle ADDmeans JACKknife REGtable NOGraph RANKcheck]
+	syntax varlist(min=3), cluster(varlist min=2 max=2) [fevar(varlist) absorb(varname) gstar Rho(real -1) SAMple(string) TABle ADDmeans JACKknife REGtable NOGraph RANKcheck mixed]
+	local domixed = ("`mixed'" != "")
+	local cvname "cv3"
+	local cvlabel "CV3"
+	if `domixed' {
+		local cvname "cv31"
+		local cvlabel "CV31 (mixed)"
+	}
 
 	if `"`jackknife'"' != "" {
 		display as error "{p 0 0 2}jackknife requests the centered CV3J estimator, which remains supported with one-way clustering.{p_end}"
@@ -1379,7 +1390,7 @@ program define _summclust_twoway, rclass
 	tempname ngg ngh ngi lvg lvh lvi plg plh pli bog boh boi rfg rfh rfi
 	tempname V1copy V3copy V1gcopy V1hcopy V1icopy V3gcopy V3hcopy V3icopy
 	tempname ngicopy lvicopy plicopy boicopy rficopy
-	capture noisily mata: _summclust_twoway_core(`TWX',`TWY',`TWG',`TWH',`TWI',`coeffnum',`dorank',`rho',("`b'","`V1g'","`V1h'","`V1i'","`V1'","`V3g'","`V3h'","`V3i'","`V3'","`dsum'","`regsum'","`ngg'","`ngh'","`ngi'","`lvg'","`lvh'","`lvi'","`plg'","`plh'","`pli'","`bog'","`boh'","`boi'","`rfg'","`rfh'","`rfi'"))
+	capture noisily mata: _summclust_twoway_core(`TWX',`TWY',`TWG',`TWH',`TWI',`coeffnum',`dorank',`rho',("`b'","`V1g'","`V1h'","`V1i'","`V1'","`V3g'","`V3h'","`V3i'","`V3'","`dsum'","`regsum'","`ngg'","`ngh'","`ngi'","`lvg'","`lvh'","`lvi'","`plg'","`plh'","`pli'","`bog'","`boh'","`boi'","`rfg'","`rfh'","`rfi'"),`domixed')
 	local tw_core_rc = _rc
 	quietly sort `order'
 	capture mata: mata drop `TWY'
@@ -1417,6 +1428,7 @@ program define _summclust_twoway, rclass
 	matrix colnames `dsum' = cv_N cv_leverage cv_partlev cv_betanog clusters Gstar0
 	matrix rownames `regsum' = `coefnames'
 	matrix colnames `regsum' = beta CV1max_se CV3max_se
+	if `domixed' matrix colnames `regsum' = beta CV1max_se CV31max_se
 	if `"`table'"' != "" {
 		matrix `tabg' = `ngg', `lvg', `plg', `bog'
 		matrix `tabh' = `ngh', `lvh', `plh', `boh'
@@ -1446,6 +1458,7 @@ program define _summclust_twoway, rclass
 	matrix `inference' = (`tw_beta',`tw_cv1se',`cv1t',`cv1p',`cv1lci',`cv1uci' \ `tw_beta',`tw_cv3se',`cv3t',`cv3p',`cv3lci',`cv3uci')
 	matrix colnames `inference' = "Coeff" "Sd. Err." "t-stat" "P value" CI-lower CI-upper
 	matrix rownames `inference' = CV1max CV3max
+	if `domixed' matrix rownames `inference' = CV1max CV31max
 	matrix `showsum' = `dsum'
 	matrix colnames `showsum' = Ng Leverage "Partial L." "beta no g" G Gstar
 	matrix rownames `showsum' = `clusterg' `clusterh' intersect
@@ -1454,6 +1467,8 @@ program define _summclust_twoway, rclass
 	display as text "{p 0 11 2}Reference: James G. MacKinnon, Morten O. Nielsen, and Matthew D. Webb{p_end}"
 	display as text "           Jackknife inference with two-way clustering"
 	display as text _newline "Two-way cluster jackknife variance estimation."
+	if `domixed' display as text "{p 0 0 2}CV31 (mixed): CV3_G + CV3_H - CV1_intersection. Intersection omit-one coefficients and CV3 are not computed.{p_end}"
+	if `domixed' display as text "{p 0 0 2}CV31max in the inference table denotes CV31 (mixed, max).{p_end}"
 	display as text "{p 0 0 2}Cluster summary statistics for `xvar' when clustered by `clusterg' and `clusterh'.{p_end}"
 	matlist `inference', title(Regression Output) rowtitle(s.e.) ///
 		cspec(& %-4s w8 | %9.6f w10 & %9.6f & %6.4f w7 & %6.4f w7 & %9.6f w10 & %9.6f w10 &) rspec("&|&|")
@@ -1487,15 +1502,16 @@ program define _summclust_twoway, rclass
 	if "`cv1label'"=="H" local cv1label "`clusterh'"
 	if "`cv3label'"=="G" local cv3label "`clusterg'"
 	if "`cv3label'"=="H" local cv3label "`clusterh'"
-	display as text "{p 0 0 2}Max selectors: CV1=`cv1label'; CV3=`cv3label'.{p_end}"
+	display as text "{p 0 0 2}Max selectors: CV1=`cv1label'; `cvlabel'=`cv3label'.{p_end}"
 	if `tw_cv1ties'!=1 & `tw_cv1ties'!=2 & `tw_cv1ties'!=4 display as text "{p 0 0 2}Note: CV1 maximum components are tied; see r(cv1max_ties).{p_end}"
-	if `tw_cv3ties'!=1 & `tw_cv3ties'!=2 & `tw_cv3ties'!=4 display as text "{p 0 0 2}Note: CV3 maximum components are tied; see r(cv3max_ties).{p_end}"
+	if `tw_cv3ties'!=1 & `tw_cv3ties'!=2 & `tw_cv3ties'!=4 display as text "{p 0 0 2}Note: `cvlabel' maximum components are tied; see r(`cvname'max_ties).{p_end}"
 	display as text "Conventional focal CV1: variance=" as result %11.6f `cv1_conventional_var' as text "  s.e.=" as result %11.6f `cv1_conventional_se'
-	display as text "Conventional focal CV3: variance=" as result %11.6f `cv3_conventional_var' as text "  s.e.=" as result %11.6f `cv3_conventional_se'
+	display as text "Conventional focal `cvlabel': variance=" as result %11.6f `cv3_conventional_var' as text "  s.e.=" as result %11.6f `cv3_conventional_se'
 	display as text "{p 0 0 2}Conventional matrices use V_G + V_H - V_intersection. The inference table uses max standard errors, not these matrices.{p_end}"
 	if `cv1_conventional_var' < 0 display as error "{p 0 0 2}Warning: conventional two-way CV1 focal variance is negative; its standard error is undefined. Max inference remains available.{p_end}"
-	if `cv3_conventional_var' < 0 display as error "{p 0 0 2}Warning: conventional two-way CV3 focal variance is negative; its standard error is undefined. Max inference remains available.{p_end}"
-	if `"`clusterg'"' == `"`clusterh'"' display as text "{p 0 0 2}Note: the dimensions are identical; conventional two-way results reduce to one-way clustering.{p_end}"
+	if `cv3_conventional_var' < 0 display as error "{p 0 0 2}Warning: conventional two-way `cvlabel' focal variance is negative; its standard error is undefined. Max inference remains available.{p_end}"
+	if `"`clusterg'"' == `"`clusterh'"' & !`domixed' display as text "{p 0 0 2}Note: the dimensions are identical; conventional two-way results reduce to one-way clustering.{p_end}"
+	if `"`clusterg'"' == `"`clusterh'"' & `domixed' display as text "{p 0 0 2}Note: identical dimensions give CV31 = 2 CV3_G - CV1_G, generally not one-way CV3.{p_end}"
 	if min(`G',`H') == 2 display as error "{p 0 0 2}Warning: only two clusters occur in the smaller dimension; inference uses 1 degree of freedom and may be unreliable.{p_end}"
 	if `"`table'"' != "" {
 		foreach dim in g h {
@@ -1515,6 +1531,7 @@ program define _summclust_twoway, rclass
 	if `"`regtable'"' != "" {
 		matrix `showreg' = `regsum'
 		matrix colnames `showreg' = Coeff CV1max CV3max
+		if `domixed' matrix colnames `showreg' = Coeff CV1max CV31max
 		local coefwidth = 11
 		foreach name of local coefnames {
 			local coefwidth = max(`coefwidth',strlen("`name'"))
@@ -1522,7 +1539,8 @@ program define _summclust_twoway, rclass
 		display as text _newline "Coefficient-wise max standard errors"
 		local rowspec = "&|" + (rowsof(`showreg')-1)*"&" + "|"
 		matlist `showreg', rowtitle(variable) cspec(& %`coefwidth's | %11.6f & %11.6f & %11.6f &) rspec("`rowspec'")
-		display as text "{p 0 0 2}Note: CV1max and CV3max are standard errors, not a joint covariance matrix.{p_end}"
+		if !`domixed' display as text "{p 0 0 2}Note: CV1max and CV3max are standard errors, not a joint covariance matrix.{p_end}"
+		else display as text "{p 0 0 2}Note: CV1max and CV31 (mixed, max) are standard errors, not a joint covariance matrix.{p_end}"
 	}
 	if `"`addmeans'"' != "" display as text "{p 0 0 2}Note: addmeans has no additional effect on the two-way summary.{p_end}"
 	if `"`nograph'"' == "" display as text "{p 0 0 2}Note: two-way diagnostic graphs are not drawn; use the dimension-specific diagnostic matrices in r().{p_end}"
@@ -1532,9 +1550,9 @@ program define _summclust_twoway, rclass
 
 	return matrix b = `b'
 	return matrix cv1 = `V1'
-	return matrix cv3 = `V3'
+	return matrix `cvname' = `V3'
 	return matrix cv1_conventional = `V1copy'
-	return matrix cv3_conventional = `V3copy'
+	return matrix `cvname'_conventional = `V3copy'
 	return matrix cv1_g = `V1gcopy'
 	return matrix cv1_h = `V1hcopy'
 	return matrix cv1_intersection = `V1icopy'
@@ -1583,20 +1601,20 @@ program define _summclust_twoway, rclass
 	return scalar N_clust_intersection = `I'
 	return scalar df_r = `df'
 	return scalar cv1_conventional_var = `cv1_conventional_var'
-	return scalar cv3_conventional_var = `cv3_conventional_var'
+	return scalar `cvname'_conventional_var = `cv3_conventional_var'
 	return scalar cv1_conventional_se = `cv1_conventional_se'
-	return scalar cv3_conventional_se = `cv3_conventional_se'
+	return scalar `cvname'_conventional_se = `cv3_conventional_se'
 	return scalar cv1max_ties = `tw_cv1ties'
-	return scalar cv3max_ties = `tw_cv3ties'
+	return scalar `cvname'max_ties = `tw_cv3ties'
 	return scalar max_tie_tolerance = 1e-10
 	return scalar cv1_max_var = `tw_cv1var'
-	return scalar cv3_max_var = `tw_cv3var'
+	return scalar `cvname'_max_var = `tw_cv3var'
 	return scalar cv1_max_se = `tw_cv1se'
-	return scalar cv3_max_se = `tw_cv3se'
+	return scalar `cvname'_max_se = `tw_cv3se'
 	return scalar cv1var_max = `tw_cv1var'
-	return scalar cv3var_max = `tw_cv3var'
+	return scalar `cvname'var_max = `tw_cv3var'
 	return scalar cv1se_max = `tw_cv1se'
-	return scalar cv3se_max = `tw_cv3se'
+	return scalar `cvname'se_max = `tw_cv3se'
 	return scalar gstarzero_g = `tw_gstar0_g'
 	return scalar gstarzero_h = `tw_gstar0_h'
 	return scalar gstarzero_i = `tw_gstar0_i'
@@ -1621,13 +1639,30 @@ program define _summclust_twoway, rclass
 	return local cv1p `cv1p'
 	return local cv1lci `cv1lci'
 	return local cv1uci `cv1uci'
-	return local cv3se `tw_cv3se'
-	return local cv3t `cv3t'
-	return local cv3p `cv3p'
-	return local cv3lci `cv3lci'
-	return local cv3uci `cv3uci'
+	return local `cvname'se `tw_cv3se'
+	return local `cvname't `cv3t'
+	return local `cvname'p `cv3p'
+	return local `cvname'lci `cv3lci'
+	return local `cvname'uci `cv3uci'
 	return local cv1max_component `tw_cv1which'
-	return local cv3max_component `tw_cv3which'
+	return local `cvname'max_component `tw_cv3which'
+	return local selected_estimator = upper("`cvname'")
+	return scalar mixed = `domixed'
+	return scalar intersection_delete_one_solves = `tw_intersection_solves'
+	if `domixed' {
+		tempname unavailable unavailablecopy
+		matrix `unavailable' = J(`tw_k',`tw_k',.)
+		matrix colnames `unavailable' = `coefnames'
+		matrix rownames `unavailable' = `coefnames'
+		matrix `unavailablecopy' = `unavailable'
+		return matrix cv3 = `unavailable'
+		return matrix cv3_conventional = `unavailablecopy'
+		return scalar cv31_max_t = `cv3t'
+		return scalar cv31_max_p = `cv3p'
+		return scalar cv31_max_lci = `cv3lci'
+		return scalar cv31_max_uci = `cv3uci'
+		return local intersection_diagnostics "omit-one unavailable; rankcheck available when requested"
+	}
 	return local cluster_g `clusterg'
 	return local cluster_h `clusterh'
 	return local vce "two-way max-se"
@@ -1904,6 +1939,7 @@ void _summclust_gstar_zero()
 
 struct _summclust_tw_result {
 	real scalar J
+	real scalar delete_solves
 	real matrix cv1
 	real matrix cv3
 	real matrix ng
@@ -1949,7 +1985,8 @@ struct _summclust_tw_result scalar _summclust_tw_component(
 	real scalar dorank,
 	real scalar fullrank,
 	real scalar forceginv,
-	string scalar dimension)
+	string scalar dimension,
+	real scalar dojack)
 {
 	struct _summclust_tw_result scalar out
 	real scalar j, K, gfact
@@ -1975,6 +2012,8 @@ struct _summclust_tw_result scalar _summclust_tw_component(
 	out.gamzero = panelsum(xws:^2,info)
 	out.gamone = panelsum(xws,info):^2
 	out.cv3 = J(K,K,0)
+	if (!dojack) out.cv3 = J(K,K,.)
+	out.delete_solves = 0
 	ZZp = J(K,K,0)
 
 	for (j=1; j<=out.J; j++) {
@@ -1982,20 +2021,23 @@ struct _summclust_tw_result scalar _summclust_tw_component(
 		Yj = panelsubmatrix(Ys,j,info)
 		Uj = panelsubmatrix(Us,j,info)
 		XjXj = quadcross(Xj,Xj)
-		XjYj = quadcross(Xj,Yj)
 		Zj = Xj'*Uj
 		ZZp = ZZp + Zj*Zj'
 		left = XpX-XjXj
+		out.leverage[j,1] = trace(XjXj*XpXi)
+		if (dorank) out.rankfail[j,1] = (rank(left)<fullrank)
+		/* Mixed I retains scores and cheap diagnostics but skips deletion solves. */
+		if (!dojack) continue
+		XjYj = quadcross(Xj,Yj)
         if (!_summclust_focal_identified(left)) {
             errprintf("Focal coefficient is not numerically identified after deleting %s cluster %g. CV3 is undefined.\n",dimension,j)
             _error(498)
         }
 		bminus = _summclust_omitsolve(left,XpY-XjYj,forceginv,(K<=50))
+		out.delete_solves = out.delete_solves + 1
 		out.betanog[j,1] = bminus[1,1]
 		bdiff = beta-bminus
 		out.cv3 = out.cv3 + bdiff*bdiff'
-		out.leverage[j,1] = trace(XjXj*XpXi)
-		if (dorank) out.rankfail[j,1] = (rank(left)<fullrank)
 	}
 	out.cv1 = gfact:*(XpXi*ZZp*XpXi)
 	out.cv3 = ((out.J-1)/out.J):*out.cv3
@@ -2011,7 +2053,8 @@ void _summclust_twoway_core(
 	real scalar coeffnum,
 	real scalar dorank,
 	real scalar rho,
-	string rowvector names)
+	string rowvector names,
+	real scalar mixed)
 {
 	struct _summclust_tw_result scalar g, h, i
 	real scalar K, q, best, forceginv, cv1var, cv3var, cv1se, cv3se
@@ -2037,17 +2080,18 @@ void _summclust_twoway_core(
 	xtt = X[.,1]-C*gamma
 	xw = X*XpXi[.,1]
 
-	g = _summclust_tw_component(X,Y,U,cidg,XpX,XpY,XpXi,beta,xtt,cross(xtt,xtt),xw,coeffnum,dorank,rank(X),forceginv,"G")
-	h = _summclust_tw_component(X,Y,U,cidh,XpX,XpY,XpXi,beta,xtt,cross(xtt,xtt),xw,coeffnum,dorank,rank(X),forceginv,"H")
-	i = _summclust_tw_component(X,Y,U,cidi,XpX,XpY,XpXi,beta,xtt,cross(xtt,xtt),xw,coeffnum,dorank,rank(X),forceginv,"intersection")
+	g = _summclust_tw_component(X,Y,U,cidg,XpX,XpY,XpXi,beta,xtt,cross(xtt,xtt),xw,coeffnum,dorank,rank(X),forceginv,"G",1)
+	h = _summclust_tw_component(X,Y,U,cidh,XpX,XpY,XpXi,beta,xtt,cross(xtt,xtt),xw,coeffnum,dorank,rank(X),forceginv,"H",1)
+	i = _summclust_tw_component(X,Y,U,cidi,XpX,XpY,XpXi,beta,xtt,cross(xtt,xtt),xw,coeffnum,dorank,rank(X),forceginv,"intersection",!mixed)
 
     if (hasmissing(g.cv1) | hasmissing(h.cv1) | hasmissing(i.cv1) |
-        hasmissing(g.cv3) | hasmissing(h.cv3) | hasmissing(i.cv3)) {
+        hasmissing(g.cv3) | hasmissing(h.cv3) | (!mixed & hasmissing(i.cv3))) {
         errprintf("A two-way variance component is missing; combined inference is undefined.\n")
         _error(498)
     }
 	V1 = g.cv1+h.cv1-i.cv1
 	V3 = g.cv3+h.cv3-i.cv3
+	if (mixed) V3 = g.cv3+h.cv3-i.cv1
 	which1 = "two-way"
 	cv1var = V1[1,1]
 	if (!missing(g.cv1[1,1]) & (missing(cv1var) | g.cv1[1,1]>cv1var)) {
@@ -2126,6 +2170,7 @@ void _summclust_twoway_core(
 	st_matrix(names[26],i.rankfail)
 
 	st_local("tw_beta",strofreal(beta[1,1],"%21.17g"))
+	st_local("tw_intersection_solves",strofreal(i.delete_solves))
 	st_local("tw_cv1var",strofreal(cv1var,"%21.17g"))
 	st_local("tw_cv3var",strofreal(cv3var,"%21.17g"))
 	st_local("tw_cv1se",strofreal(cv1se,"%21.17g"))

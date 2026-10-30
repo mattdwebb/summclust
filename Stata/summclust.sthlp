@@ -36,6 +36,7 @@ The command retains its historical {opt sample()} option. Standard Stata
 {synopt:{opt fevar(varlist)}}include indicators for numeric categorical variables{p_end}
 {synopt:{opt absorb(varname)}}partial out one fixed effect; see the nesting conditions below{p_end}
 {synopt:{opt jack:knife}}also calculate one-way CV3J; not available with two-way clustering{p_end}
+{synopt:{opt mixed}}explicitly select two-way CV31: CV3_G + CV3_H - CV1_intersection; off by default{p_end}
 {synopt:{opt gstar}}calculate effective-cluster measures G*(0) and, when available, G*(1){p_end}
 {synopt:{opt rho(#)}}also calculate G*(rho); 0.00001 <= # <= 1{p_end}
 {synopt:{opt sam:ple(exp)}}restrict the estimation sample using a logical expression{p_end}
@@ -74,6 +75,51 @@ also change results relative to older versions. This release was tested on
 StataNow/SE 18.5; the declared Stata 13 minimum has not been independently tested.
 
 {title:Native two-way clustering}
+
+{pstd}
+{opt mixed} requests the mixed estimator CV31. It replaces only the intersection
+CV3 component by the correctly normalized intersection CV1 component:
+V_CV31 = V_CV3,G + V_CV3,H - V_CV1,I. The option is off by default and is never
+selected automatically by intersection count or another threshold. It is a
+different estimator that may save computation, not a claim of superior inference.
+It requires two clustering dimensions and remains incompatible with {opt jackknife}.
+
+{pstd}
+With {opt mixed}, the focal inference row is labelled {cmd:CV31max}, explicitly
+identified in the output as {cmd:CV31 (mixed, max)}.
+The variance is max(V_CV31[j,j], V_CV3,G[j,j], V_CV3,H[j,j]), with
+min(G,H)-1 degrees of freedom for the t statistic, p value, and confidence
+interval. {cmd:r(cv31)} and {cmd:r(cv31_conventional)} contain the raw full
+conventional covariance. {cmd:r(cv31_conventional_var)} and
+{cmd:r(cv31_conventional_se)} describe its focal entry; a negative variance
+is retained and its SE is missing. {cmd:r(cv31_max_var)} and
+{cmd:r(cv31_max_se)} describe focal max inference. Full-precision numeric
+{cmd:r(cv31_max_t)}, {cmd:r(cv31_max_p)}, {cmd:r(cv31_max_lci)}, and
+{cmd:r(cv31_max_uci)} and the corresponding {cmd:cv31t}, {cmd:cv31p},
+{cmd:cv31lci}, {cmd:cv31uci} return macros are available.
+{cmd:r(selected_estimator)} is {cmd:CV31} or {cmd:CV3} in two-way mode;
+{cmd:r(mixed)} records the explicit choice. No full max covariance is formed.
+
+{pstd}
+The mixed path performs zero intersection delete-one coefficient solves,
+recorded in {cmd:r(intersection_delete_one_solves)}. Intersection sizes,
+ordinary and partial leverage, and applicable G-star measures remain available.
+Intersection omit-one coefficients and their coefficient of variation are
+missing; {cmd:r(cv3)}, {cmd:r(cv3_conventional)}, and the intersection CV3
+component are missing matrices, never aliases for CV31. Primary CV3 components
+remain available. {opt rankcheck} explicitly computes deleted-design ranks,
+including intersection ranks, without calculating the omitted coefficients;
+this additional rank work can reduce the computational saving. Without that
+option, rank-failure vectors remain missing. {opt table} continues to display
+only primary-dimension tables; the intersection summary displays missing
+omit-one diagnostics. Two-way graphs remain suppressed.
+
+{pstd}
+For identical dimensions CV31 = 2 CV3_G - CV1_G, generally not one-way CV3.
+No eigenvalue modification or positive floor is applied.
+
+{phang2}{cmd:summclust y x z, cluster(g h) nograph}{p_end}
+{phang2}{cmd:summclust y x z, cluster(g h) mixed nograph}{p_end}
 
 {pstd}
 The 30 September 2026 development presentation revision restores the standalone

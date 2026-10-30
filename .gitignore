@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.Rhistory
+.RData
+*.log
+*.smcl
+*.gph
+/output/
+/validation/generated/
+*.zip
