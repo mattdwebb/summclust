@@ -1,189 +1,172 @@
-# Python summclust
+# Using summclust in Python
 
-## Explicit mixed estimator (CV31)
+`summclust` helps you see whether a regression result depends heavily on a few
+clusters, such as schools, firms, villages, or states. It estimates your linear
+regression, reports clustered standard errors, and shows what happens to the
+coefficient of interest when each cluster is left out.
 
-```python
-ordinary = summclust(data, "y", "x", ["z"], ["firm", "year"])
-mixed = summclust(data, "y", "x", ["z"], ["firm", "year"], mixed=True)
+[Repository home](../README.md) · [Stata guide](../Stata/README.md) · [R guide](../R/README.md)
+
+## Get started
+
+Download and extract this repository, or clone it. Use Python 3.10 or later
+with NumPy; pandas is not required. If needed, install NumPy from a terminal:
+
+```sh
+python -m pip install numpy
 ```
 
-`mixed=False` is the default. The method never changes automatically with
-intersection count. CV31 combines `CV3_G + CV3_H - CV1_I`, reusing the same
-finite-sample-adjusted intersection CV1 as ordinary two-way CV1. This is a
-different estimator that may reduce computation; no superiority is claimed.
-One-way `mixed=True` and centered two-way `jackknife=True` are rejected.
-`mixed` accepts Python or NumPy booleans only.
+Set your working directory to the extracted repository folder—the folder
+containing `Stata`, `R`, `python`, and `examples`. In a notebook, this means
+opening the notebook from that folder or changing to it first. The complete
+[example script](../examples/school_program.py) can also be run from a terminal:
 
-`cv31`/`cv31_conventional` retain the raw full covariance. The focal
-`cv31_conventional_var` and `cv31_conventional_se` are separate from
-`cv31_max_var`, `cv31_max_se`, and `inference['cv31']`: the latter uses
-max(CV31 focal variance, CV3_G focal variance, CV3_H focal variance), with
-`min(G,H)-1` degrees of freedom. Full-precision `cv31_max_t/p/lci/uci`
-and existing-style `cv31t/p/lci/uci` aliases are available.
-`inference_conventional['cv31']` supplies conventional inference; a negative
-variance produces NaN SE/t/p/CI. There is no elementwise-max covariance matrix.
-`selected_estimator`, `estimator_label`, `inference_label`, and
-`regsum_columns` identify `CV31 (mixed)` and `CV31 (mixed, max)`.
+```sh
+python examples/school_program.py
+```
 
-Under mixed, `cv3`/`cv3_conventional`, `cv3_intersection`, intersection
-`betanog`/`betas_deleted`/`legacyflag`, and its omit-one summary are NaN.
-The G/H CV3 components remain computed. Intersection sizes, ordinary and
-partial leverage, and available G-star quantities remain computed.
-`rankcheck=True` computes requested intersection rank diagnostics directly,
-without coefficient solves; it can still add work. `table=True` retains
-the existing G/H tables. There is no explicit intersection omit-one request
-in the current interface. `intersection_delete_one_solves` reports zero;
-component solve counters are incremented at the actual solver call.
-Pure CV3 and its deletion diagnostics require an ordinary call.
-No eigenvalue adjustment option exists in this API.
+## Example: a school program and test scores
 
-Independent implementation of Matthew Webb's current Stata `summclust`, with
-the cluster diagnostics and methods of MacKinnon, Nielsen, and Webb. The exact
-Stata baseline is 5.1.1 with the September 30, 2026 presentation revision. Runtime
-requirements: Python 3.10 or newer and NumPy 1.22 or newer. No pandas, SciPy,
-statsmodels, plotting package, Stata installation, or R installation is needed
-to use this module. See the repository LICENSE and source attribution.
+The shared [example data](../examples/school_program.csv) are **fictional**.
+There are 1,710 student observations from 24 schools over five years. Schools
+differ in size, and some introduce a program during the period.
 
-This module contains no bootstrap procedure. The supplied tests are deterministic
-and use synthetic data only.
+| Column | Meaning |
+|---|---|
+| `test_score` | Student's test score, in points |
+| `program` | 1 if the school has the program that year, 0 otherwise |
+| `baseline_score` | Student's baseline test score |
+| `school` | School identifier, stored as a string |
+| `year` | Year of observation |
+
+We estimate the score difference associated with the program, controlling for
+baseline scores and year effects. We cluster by school to allow observations
+within a school to have correlated errors.
 
 ```python
+import sys
+import numpy as np
+sys.path.insert(0, "python")
 from summclust import read_csv, summclust
 
-data = read_csv("data.csv", string_columns=["firm"])
-result = summclust(
-    data, outcome="y", focal="x", controls=["z", "w"], cluster="firm",
-    fevar=["year"], rho=0.5, jackknife=True, rankcheck=True, table=True,
+data = read_csv("examples/school_program.csv", string_columns=["school"])
+fit = summclust(
+    data, outcome="test_score", focal="program", controls=["baseline_score"],
+    cluster="school", fevar="year",
 )
-print(result["coefficient_names"], result["b"])
-print(result["inference"]["cv3"])  # full-precision beta, SE, t, p, 95% CI, df
 ```
 
-`data` is a mapping from column names to equal-length one-dimensional sequences.
-Outcome, focal regressor, and controls must be numeric. Cluster identifiers may
-be numeric or strings. `controls` must contain at least one name, matching the
-Stata minimum-varlist requirement. No formula parser or automatic data download
-is involved.
+`focal` names the variable whose coefficient you want to investigate. `controls`
+lists the other regressors, and `fevar` adds categorical fixed effects.
+`summclust` estimates the regression itself; no separate regression call is needed.
 
-`sample` accepts a Boolean mask over the original observations. Complete-case
-selection includes every regression column, cluster identifier, fixed effect,
-and absorbed identifier. Numeric nonfinite values, `None`, and empty string
-identifiers are missing. `read_csv` treats empty numeric cells and `.` as NaN;
-declare string columns explicitly. Original arrays and their order are preserved.
+## Read the regression results
 
-`cluster=["firm", "year"]` requests native two-way inference. `fevar` accepts one
-name or a sequence; `absorb` accepts one name. Both accept numeric or string
-identifiers in one-way, two-way, and mixed estimation; no manual encoding is
-needed. Absorbed groups must be nested inside each clustering dimension.
-`gstar`, `rho`, `jackknife`, `rankcheck`,
-`table`, `addmeans`, and `regtable` implement the corresponding numeric options.
-`rho` must be between 0.00001 and 1, inclusive. Omitting it uses the source's
-internal 0.1234567 when `gstar=True`. Graphs and Stata-specific printing are not
-implemented; all graph inputs are returned.
-
-String fixed-effect levels are sorted after sample restrictions and missing
-values have been removed. Their coefficient names use the original column name
-and a 1-based level position, such as `industry_1`, so spaces and punctuation in
-category labels do not enter coefficient names. If this would exceed 32
-characters, the column-name prefix is shortened and the suffix is
-`_f<effect position>_<level position>`, keeping different long effect names
-distinct. Numeric one-way fixed-effect
-names retain their actual values; two-way names use level positions for both
-types. Empty strings, `None`, and numeric nonfinite identifiers are missing;
-nonempty strings such as `"NaN"` or `"Inf"` are ordinary category labels.
-
-For a CSV with string columns `firm` and `industry`, declare both when reading
-the file. The columns `y`, `x`, `z`, and `year` are numeric in this example:
+Python returns results in a dictionary. The following statements print a small
+table for the coefficient on `program`:
 
 ```python
-data = read_csv("data.csv", string_columns=["firm", "industry"])
-oneway = summclust(data, "y", "x", ["z"], "firm", fevar="industry")
-mixed = summclust(data, "y", "x", ["z"], ["firm", "year"],
-                  fevar="industry", mixed=True)
-absorbed = summclust(data, "y", "x", ["z"], "firm", absorb="firm")
+print(f"{fit['N']} observations in {fit['G']} schools")
+for method in ("cv1", "cv3"):
+    r = fit["inference"][method]
+    print(f"{method.upper()}: estimate={r['beta']:.3f}, SE={r['se']:.3f}, "
+          f"p={r['p']:.3f}, 95% CI=[{r['lci']:.3f}, {r['uci']:.3f}]")
 ```
 
-If your arrays already contain strings, pass them directly; no numeric encoding
-is needed. Omit `mixed=True` for ordinary two-way estimation. The last call
-uses one-way clustering so each absorbed firm lies within a cluster. When also
-clustering by year, firms observed in several years need `fevar="firm"`
-instead of `absorb="firm"`.
-
-The returned dictionary includes:
-
-- `b`, `coefficient_names`, `N`, `k`, `rank`, `coeffnum`, `df_r`, `sample_mask`;
-- one-way `cv1`, `cv3`, optionally `cv3j`; `ng`, `lever`, `partlev`, `betanog`;
-- optional `legacyflag` and `rankfail`; flagged-cluster dropped-subsample
-  covariance/inference with the same availability rules as Stata;
-- optional G-star, cluster `scall` table, `clustsum` summary, `bonus` additional
-  means, and `regresstab` numeric regression table;
-- two-way `cv1`/`cv3` conventional inclusion-exclusion matrices, each G/H/I
-  component and documented aliases, cluster-specific vectors, `dimsummary`,
-  and optional `table_g`/`table_h`;
-- two-way focal max variances/SEs, selected component names, and tie masks
-  (1 = two-way, 2 = G, 4 = H); `regsum` contains coefficient-specific max SEs.
-
-`components` contains full-precision per-dimension numerical arrays and actual
-`cluster_ids`, including identifier pairs for the intersection. Align vectors by
-these identifiers when comparing software, because string ordering may differ
-across locales. `export_rows(result, specification)` produces the comparison
-indexed numeric CSV rows, including coefficient labels. `flatten_summclust`
-provides a compact alternative with identifiers as row labels.
-
-There is no full max covariance matrix: two-way inference uses coefficient-wise
-maxima of the conventional, G, and H variances, with `min(G,H)-1` degrees of
-freedom. Negative conventional variances are preserved. Two-way CV3J is rejected.
-The focal coefficient must be identified in the full and each computed
-deleted-cluster two-way model (G/H only under mixed). Rank deficiency confined
-to nuisance coefficients is allowed.
-
-The design is `[focal, constant, controls]` when there are no fixed effects.
-Otherwise it is `[focal, controls, indicators]`: all levels of the first explicit
-fixed effect are included without absorption, and the final sorted level is
-omitted for subsequent effects and every effect with absorption. Absorption
-demeans the design and outcome; CV1's parameter count includes the transformed
-design rank plus the number of absorbed groups. Partial leverage residualizes
-the focal regressor on **all** other design columns.
-
-The generalized inverse uses an adaptive diagonal-pivot symmetric sweep,
-zeroing omitted coordinates rather than distributing coefficients across a
-Moore-Penrose solution. Its relative pivot cutoff and arithmetic ordering were
-checked with direct Mata `invsym()` probes, including dependent fixed effects.
-Crossproducts accurately accumulate rounded double-precision products, with a
-binary-lattice check retaining fast matrix multiplication for exact sums.
-The Cholesky path and triangular solves preserve Mata's update and summation
-order; LAPACK's equally valid ordering can select a different representation
-when a deleted fixed effect makes nuisance coefficients unidentified.
-Rank diagnostics use the Mata singular-value tolerance. Floating-point pivot
-choices can still change in numerically marginal designs; `validation/README.md`
-states the cases and tolerances actually checked. The one-way legacy flag means
-that any omitted-cluster coefficient has magnitude at most 1e-8; it is deliberately
-distinct from true rank loss and does not exclude estimates from primary CV3.
-
-For one-way compatibility, `beta`, `cv1se`, `cv3se`, `cv3Jse`, G-star aliases, and
-their derived t/p/CI aliases reproduce Stata's legacy `%9.0g` conversion before
-inference. Full precision remains in `b`, covariance matrices, `inference`, and
-the corresponding `_full` aliases. `clustsum` reproduces the float32 temporary
-vectors used in Stata's summary display; `clustsum_full` retains double-precision
-summary inputs. Two-way results use full precision throughout. These deliberate
-compatibility conventions never round inputs to a covariance calculation.
-
-Student-t tails and inverse tails are available as `student_t_sf(t, df)` and
-`student_t_isf(p, df)`. They use an incomplete-beta continued fraction and
-bracketed inversion; no normal approximation is substituted. They are checked
-against analytic low-df cases, base R, and Stata across the relevant degrees of
-freedom and probabilities, including tails as small as 1e-12.
-
-Run the independent mathematical tests from this directory:
+Output:
 
 ```text
-python -m unittest -v
+1710 observations in 24 schools
+CV1: estimate=3.426, SE=0.871, p=0.001, 95% CI=[1.625, 5.227]
+CV3: estimate=3.426, SE=1.059, p=0.004, 95% CI=[1.235, 5.618]
 ```
 
-From the repository root, `python validation/python_certification.py` also
-checks exact default parity against the frozen pre-mixed test fixture.
-See `validation/README.md` for the full Stata/R/Python comparison.
+The fitted program difference is about **3.43 score points**, after accounting
+for baseline scores and year effects. CV1 is the usual clustered standard-error
+calculation. CV3 uses the estimates obtained by leaving out each school in turn.
+They give the same coefficient but different measures of uncertainty. Here CV3
+gives a larger standard error and a wider confidence interval.
 
-Invalid specifications raise `SummclustError`, a `ValueError` subclass with a
-Stata-style `code` attribute. Numerical output is returned without printing, and
-diagnostic messages are collected in `result["warnings"]`.
+These fictional results illustrate how to read the output. A causal interpretation
+in your own study depends on the research design, not on the choice of standard error.
+
+## See which schools matter most
+
+Partial leverage measures a school's share of the variation in `program` that
+remains after accounting for the other regressors. The shares sum to one. With
+24 schools, an equal share would be about `1 / 24 = 0.042`; this is a useful
+comparison, not a cutoff for deciding whether a school is a problem.
+
+Show the five schools with the largest partial leverage:
+
+```python
+print("School       N   Partial leverage   Estimate without school")
+for j in np.argsort(-fit["partlev"])[:5]:
+    print(f"{fit['cluster_ids'][j]:<10} {int(fit['ng'][j]):3d} "
+          f"{fit['partlev'][j]:18.3f} {fit['betanog'][j]:25.3f}")
+```
+
+Output:
+
+```text
+School       N   Partial leverage   Estimate without school
+School 24  300              0.174                     4.220
+School 13  100              0.111                     3.276
+School 04   80              0.088                     3.469
+School 05  100              0.062                     3.360
+School 08   50              0.055                     3.368
+```
+
+School 24 contributes about 17.4% of the remaining program variation. Leaving it
+out raises the estimated coefficient from 3.43 to 4.22. School 13 also has high
+partial leverage, but leaving it out moves the coefficient only to 3.28. A school
+can contribute a lot of identifying variation without greatly changing the result.
+
+Use these diagnostics to understand important clusters and report sensitivity.
+A large value is not, by itself, a reason to delete a school. The separate
+`fit["lever"]` field measures leverage for the regression as a whole; it is not
+the same as partial leverage and does not sum to one.
+
+## Adapt the example to your study
+
+Use your column names in `outcome`, `focal`, `controls`, and `cluster`. At least
+one control is required. Regression columns must be numeric. Cluster identifiers
+and fixed-effect identifiers may be numeric or strings; include string columns
+in `read_csv(..., string_columns=[...])` when loading a CSV.
+
+To restrict the sample, pass a Boolean condition over the original rows:
+
+```python
+recent = summclust(data, "test_score", "program", ["baseline_score"], "school",
+                  fevar="year", sample=data["year"] >= 2021)
+```
+
+To add school effects as well as year effects:
+
+```python
+school_fe = summclust(data, "test_score", "program", ["baseline_score"], "school",
+                      fevar=["school", "year"])
+```
+
+This changes the regression: the program coefficient now uses variation within
+schools over time. String school names work directly. For this one-way model,
+`absorb="school", fevar="year"` is another way to account for school and year
+effects. An absorbed group must lie within one cluster in each clustering dimension.
+
+For two-way clustering, supply two names, for example `cluster=["school", "year"]`.
+The reported inference uses the largest of the conventional two-way standard error
+and the two one-way standard errors. This example has only five year clusters,
+which limits the information available for two-way inference. Choose clustering
+dimensions based on the sources of dependence in your study.
+
+The optional `mixed=True` uses CV31 in place of CV3 for two-way clustering. It can
+save computation but changes the standard-error estimator. It is never selected
+automatically. In mixed mode, leave-one-intersection coefficients are not computed.
+
+Missing model values, nonfinite numeric values, and empty string identifiers are
+excluded before estimation. The input data are not modified. Check
+`fit["N"]`, `fit["sample_mask"]`, and `fit["warnings"]` when adapting a specification.
+
+See the [Python reference](REFERENCE.md) for all options, saved results, and
+details of two-way inference. The [paper](https://arxiv.org/abs/2205.03288) explains
+the methods behind the diagnostics.

@@ -1,222 +1,169 @@
-# Base-R summclust
+# summclust in R
 
-Source `summclust.R`; no installation or CRAN package is needed. This independent
-implementation follows Matthew D. Webb's local Stata `summclust` 5.1.1 with the
-30 September 2026 presentation revision. Frozen pre-mixed test-source hashes
-are recorded in `tests/baseline/README.md`. Mathematical attribution: MacKinnon,
-Nielsen, and Webb, *Leverage, Influence, and the Jackknife in Clustered Regression
-Models: Reliable Inference Using summclust* (2023).
+`summclust` helps you see how much a regression result depends on particular
+schools, firms, regions, or other clusters. It estimates the regression, reports
+cluster-robust standard errors, and shows what happens to your coefficient of
+interest when each cluster is left out.
+
+This guide uses the same [fictional school-program data](../examples/school_program.csv)
+as the [Stata](../Stata/README.md) and [Python](../python/README.md) guides.
+
+## Get started
+
+Download this repository using **Code → Download ZIP**, then unzip it. In R or
+RStudio, set your working directory to the top-level folder containing `R`,
+`Stata`, `python`, and `examples`. For example:
 
 ```r
+setwd("path/to/summclust-main")
 source("R/summclust.R")
-i <- 1:120
-d <- data.frame(y = sin(i/2), x = sin(i/3), z = cos(i/4),
-                group = rep(1:8, each = 15))
-fit <- summclust(d, outcome = "y", focal = "x", controls = "z",
-                cluster = "group", jackknife = TRUE, rankcheck = TRUE)
+```
+
+Only base R is needed; there are no additional packages to install. You can run
+the complete example with `source("examples/school_program.R")`, or follow the
+steps below.
+
+## Example: a school program and test scores
+
+The dataset contains 1,710 observations from 24 schools over five years.
+`program` is 1 when a school participates in the program in that year and 0
+otherwise. We study the score difference associated with participation,
+controlling for baseline scores and year effects. Standard errors are clustered
+by school. These data are fictional; all results below are for illustration.
+
+```r
+d <- read.csv("examples/school_program.csv")
+
+fit <- summclust(
+  d,
+  outcome = "test_score",
+  focal = "program",
+  controls = "baseline_score",
+  cluster = "school",
+  fevar = "year"
+)
+
+options(digits = 5)
 print(fit)
-fit$cv1                         # full covariance matrix
-fit$inference$cv3               # full precision for every explicit coefficient
-flatten_summclust(fit, "results.csv")
 ```
 
-The example above uses deterministic synthetic data.
-
-## Arguments
-
-`summclust(data, outcome, focal, controls, cluster, fevar=NULL, absorb=NULL,
-sample=NULL, gstar=FALSE, rho=NULL, jackknife=FALSE, rankcheck=FALSE,
-table=FALSE, addmeans=FALSE, regtable=FALSE, mixed=FALSE)`
-
-- `data`: data frame or named list of equal-length vectors. Regression columns
-  must be numeric. `outcome` and `focal` name single columns; `controls` names at
-  least one further regressor, matching the Stata syntax.
-- `cluster`: one or two column names. Numeric and string identifiers are
-  supported, including nonconsecutive numeric labels. String sorting uses radix
-  order rather than the session's language-dependent collation.
-- `fevar`: explicit categorical effects, supplied as numeric, character, or
-  factor columns in either clustering mode. Character and factor levels are
-  sorted by their labels after sample and missing-value exclusions; unused
-  factor levels do not enter the model. Their coefficient names use the variable
-  name and sorted level position, such as `industry_1`. Existing one-way numeric
-  effects retain their numeric-value labels; two-way effects use level positions.
-  Long string-effect names are shortened to 32 characters, with an `_fJ_K`
-  suffix identifying the effect's position J in `fevar` and its level K.
-  With no absorption, all levels of the first effect enter and the final sorted
-  level of every subsequent effect is omitted. With absorption, the final level
-  is omitted for every explicit effect. There is no additional constant when
-  either effect option is used. Otherwise the column order is focal, constant,
-  controls. FE columns follow the controls.
-- `absorb`: one numeric, character, or factor effect to remove by within-group
-  demeaning. Each absorbed group must lie within one cluster in every primary
-  clustering dimension. String identifiers do not need manual recoding, and
-  the input data are not modified.
-- `sample`: optional logical vector in original row order. Missing sample values
-  are excluded, as are missing selected variables and empty string identifiers.
-  Infinite numeric values are excluded because Stata has no finite-data infinity.
-- `gstar` requests effective-cluster measures. `rho` in `[0.00001,1]` enables them
-  too. Cluster/subcluster fixed effects make G*(1) and G*(rho) unavailable. The
-  source internally uses rho=.1234567 when omitted, and returns that calculation
-  when `gstar=TRUE` and it is defined; the port retains this source behavior.
-- `jackknife`: additionally return one-way centered CV3J. Two-way CV3J raises an
-  error, as in the authoritative package.
-- `mixed`: a single nonmissing logical value, off by default. With two clustering
-  dimensions, `TRUE` selects CV31, the mixed estimator `CV3_G + CV3_H - CV1_I`.
-  It reuses the intersection CV1 correction `I/(I-1)*(N-1)/(N-rank-absorbed_levels)`.
-  One-way use and two-way `jackknife=TRUE` are rejected. Selection never changes
-  automatically with intersection count, sample size, or runtime. CV31 is a
-  different estimator that may save computation; no superiority is claimed.
-- `rankcheck`: calculate actual deleted-design rank losses. In one-way mode it
-  also exposes the separate legacy near-zero-coefficient flags. It does not
-  change the historical one-way dropped-subsample policy.
-- `table`, `addmeans`, `regtable`: expose cluster tables, alternative means, and
-  all-coefficient inference. Printing/graphs intentionally do not imitate Stata.
-  `addmeans` has no additional effect in two-way mode.
-
-## Fixed effects with string labels
-
-Pass the names of character or factor columns directly to `fevar` and `absorb`;
-you do not need to convert their labels to numeric codes. Continuing the
-synthetic example above:
-
-```r
-d$firm <- paste("Firm", d$group)
-d$industry <- rep(c("Manufacturing", "Retail", "Services"), length.out = nrow(d))
-d$year <- rep(1:5, length.out = nrow(d))
-
-oneway <- summclust(d, "y", "x", "z", "firm", fevar = "industry")
-mixed <- summclust(d, "y", "x", "z", c("firm", "year"),
-                  fevar = "industry", mixed = TRUE)
-absorbed <- summclust(d, "y", "x", "z", "firm", absorb = "firm")
-```
-
-The same columns work with ordinary two-way estimation when `mixed` is omitted.
-Absorption requires each effect group to lie within a cluster in every
-clustering dimension. The last call therefore uses one-way clustering: a firm
-observed in several years cannot be absorbed when also clustering by year.
-Use `fevar = "firm"` for that crossed effect. Missing model values and empty
-string identifiers are excluded. Unused factor levels do not affect the fit.
-
-## Results and precision
-
-The returned `summclust` list includes Stata numerical names: `cv1`, `cv3`, optional
-`cv3j`, `ng`, `lever`, `partlev`, `betanog`, optional `legacyflag`/`rankfail`, and
-the documented focal inference and G* fields. Matrix dimension names give the
-coefficient order. Diagnostic vector names give actual cluster identifiers.
-`b` is the full coefficient row vector in both modes. `sample_mask` and
-`sample_order` identify the original input rows used and their internal order.
-`components` contains per-dimension matrices, complete deletion estimates and
-diagnostics; `cluster_pairs` gives the actual two-way intersection identifiers.
-
-Two-way `cv1` and `cv3` are conventional inclusion-exclusion matrices and can be
-indefinite. Their component matrices and documented aliases are returned.
-`cv1_max_var`/`cv3_max_var` and their inference describe only the focal
-restriction. `inference` contains coefficient-specific max standard errors for
-two-way clustering. There is no full max covariance matrix. All two-way
-inference uses min(G,H)-1 degrees of freedom.
-
-With `mixed=TRUE`, `cv31`/`cv31_conventional` contain the raw conventional mixed
-covariance. `cv31_conventional_var` and `cv31_conventional_se` concern the focal
-coefficient; negative raw variances are retained and their conventional SEs
-are `NA`. `inference_conventional$cv31` contains conventional inference for
-all coefficients. `cv31_max_var`/`cv31_max_se`, `cv31se`, `cv31t`, `cv31p`,
-`cv31lci`, `cv31uci`, and `inference$cv31` use coefficient-specific maxima of
-the mixed, G-CV3 and H-CV3 variances. No full max covariance is constructed.
-`selected_estimator` is `"CV31"`; labels are `"CV31 (mixed)"` and
-`"CV31 (mixed, max)"`. The degrees of freedom remain `min(G,H)-1`.
-
-Ordinary CV3 is not calculated under mixed: its combined matrices and the
-intersection CV3 matrix contain `NA`, and no ordinary combined CV3 inference
-is returned. Intersection `omitted`, `betanog`, and `legacyflag` are `NA`.
-Intersection sizes, leverage, partial leverage, and G-star remain available.
-An explicit `rankcheck=TRUE` computes deleted-design ranks separately, without
-deleted coefficient solves; this additional matrix work can reduce savings.
-`table=TRUE` retains the existing primary-dimension tables. No intersection
-omission table or graph is fabricated. `intersection_delete_one_solves` counts
-the actual coefficient solves and is zero on both mixed paths. Each component
-also reports `delete_one_solves`. The R port has no eigenvalue adjustment option.
-
-```r
-ordinary <- summclust(d, "y", "x", "z", cluster=c("firm", "year"))
-mixed_fit <- summclust(d, "y", "x", "z", cluster=c("firm", "year"), mixed=TRUE)
-mixed_fit$cv31_conventional
-mixed_fit$inference$cv31
-```
-
-For identical partitions, CV31 is `2*CV3_G - CV1_G`, generally different from
-one-way CV3. For a nested partition, it is `CV3_G + CV3_H - CV1_I` with the
-actual (finer) intersection partition.
-
-The one-way source rounds its legacy focal macros through Mata `%9.0g` before
-computing t statistics, p values, and intervals. The matching top-level fields
-preserve that behavior. The double-precision `b`, covariance matrices,
-`inference`, `beta_full`, and `cv1se_full`/`cv3se_full` retain unrounded results.
-G* fields ending in `_full` likewise retain full precision. The source's global
-summary uses float-storage temporary vectors; `clustsum` reproduces that table,
-while `clustsum_full` uses the underlying double-precision diagnostics. No float
-conversion is applied to `ng`, `lever`, `partlev`, or `betanog`.
-
-One-way singular deletions preserve the historical flag `any(abs(beta_minus)
-<=1e-8)`, even when a zero coefficient is legitimate. `inference$cv3drop` and
-`inference$cv3jdrop` keep distinct meanings. The legacy top-level `cv3sedrop`,
-`cv3tdrop`, etc. reflect CV3J-drop when `jackknife=TRUE`, matching the source's
-overwritten macros. Full drop matrices are exposed with `regtable=TRUE`.
-
-`flatten_summclust` produces long CSV rows with `statistic,row,column,value,
-row_label,column_label`. List metadata and nested results are excluded; all
-top-level numerical matrices/vectors/scalars are included. Values missing in
-Stata are represented by R `NA` and blank CSV cells.
-
-## Numerical conventions and validation
-
-Partial leverage residualizes the focal variable on **every other design
-column**, including explicit or absorbed effects. CV1 uses the design rank plus
-the number of absorbed effects in its residual degrees-of-freedom correction.
-CV3 refits deterministic omitted-cluster crossproducts; it does not resample.
-
-The generalized inverse selects independent original columns, setting omitted
-rows and columns to zero, rather than using a Moore-Penrose inverse. Its
-largest-current-diagonal pivots, relative singular cutoff, Schur update order
-and upper-triangle symmetry were checked against Mata `invsym()` on duplicate,
-scaled, zero-column and dependent-FE fixtures. Crossproducts accurately sum
-rounded binary64 products, using an exact binary-lattice test to retain ordinary
-crossproducts where safe. Other sums use high/low binary splitting or an
-expansion of rounding residuals. This avoids a mandatory compiled extension.
-
-Deleted-model solves reproduce the current Mata path's right-looking Cholesky
-updates, reciprocal column scaling, and two-accumulator dot products in forward
-and backward substitution. These arithmetic conventions matter when an
-algebraically singular deleted FE design is accepted by the source's numerical
-Cholesky criterion. Seventy-five exact-input empirical deletion systems were
-checked in addition to the small fixtures. Extremely near-threshold or tied
-systems can still be sensitive to platform arithmetic; the validation documents
-the tested scope. Rank diagnostics use the separate Mata SVD rule (minimum
-matrix dimension times machine epsilon times the largest singular value).
-Student-t probabilities and quantiles use base R `stats`.
-
-`clustsum_full` removes the legacy table's float-storage rounding while
-retaining its original `G-1` denominator, including a selected deletion
-subset. A nonzero singleton subset therefore has zero dispersion under this
-diagnostic convention; a zero or nonfinite mean remains missing. This supplemental
-field preserves the current baseline's singleton behavior.
-
-Run the independent mathematical tests with:
+Output:
 
 ```text
-Rscript R/test_summclust.R
-Rscript R/test_mixed.R
-Rscript R/test_string_fixed_effects.R
-Rscript R/run_mixed_fixtures.R
+summclust: 1710 observations; 24 clusters; inference df = 23
+      beta      se      t          p    lci    uci
+cv1 3.4264 0.87067 3.9353 0.00066048 1.6252 5.2275
+cv3 3.4264 1.05944 3.2341 0.00366654 1.2348 5.6180
 ```
 
-`Rscript --vanilla R/certify.R` also runs exact-default parity checks against
-the frozen pre-mixed fixture. See `validation/README.md` for the complete
-Stata/R/Python comparison, including the required Stata and Python exports.
+The estimated program coefficient is **3.43 score points**, after accounting
+for baseline scores and year effects. `lci` and `uci` are the lower and upper
+limits of the 95% confidence interval.
 
-These checks use QR regression refits, a direct sandwich, exact identities,
-row permutations, FE/absorb equivalence, missing values, and error cases.
-The shared validation also compares full matrices, diagnostics and inference
-with current Stata and the independent Python port.
+Both rows report the same coefficient. **CV1** uses conventional clustered
+standard errors. **CV3** uses a cluster jackknife calculation based on leaving
+out one school at a time. In this example CV3 gives a larger standard error
+and a wider interval: approximately **1.23 to 5.62 points**. The choice of
+standard-error calculation does not establish whether the relationship is causal.
 
-The supplied fixtures are synthetic. No bootstrap calculations or simulations
-are run by these scripts.
+`focal` names the variable whose coefficient you want to examine. Supply at
+least one control variable. `summclust` fits the model directly; you do not
+need to run `lm()` first.
+
+## Which schools matter most?
+
+Partial leverage measures each school's share of the variation in `program`
+remaining after the other regressors are accounted for. The following code
+lists the five schools with the largest shares, alongside the estimate obtained
+when each is excluded:
+
+```r
+diagnostics <- data.frame(
+  school = names(fit$ng),
+  N = as.numeric(fit$ng),
+  partial_leverage = as.numeric(fit$partlev),
+  estimate_without_school = as.numeric(fit$betanog)
+)
+diagnostics$change <- diagnostics$estimate_without_school - fit$beta_full
+top <- diagnostics[order(diagnostics$partial_leverage, decreasing = TRUE), ]
+print(head(top, 5), row.names = FALSE, digits = 4)
+```
+
+Output:
+
+```text
+    school   N partial_leverage estimate_without_school   change
+ School 24 300          0.17406                   4.220  0.79384
+ School 13 100          0.11050                   3.276 -0.15008
+ School 04  80          0.08832                   3.469  0.04263
+ School 05 100          0.06182                   3.360 -0.06642
+ School 08  50          0.05549                   3.368 -0.05842
+```
+
+School 24 provides about **17.4%** of this variation. An equal share across
+24 schools would be about **4.2%**; that is a comparison point, not a cutoff.
+Leaving School 24 out raises the estimated coefficient from 3.43 to 4.22 points.
+
+The share measures potential influence; the change in the coefficient shows
+actual sensitivity in this regression. A large value is a reason to understand
+that school's data and report sensitivity, rather than automatically exclude it.
+Ordinary leverage is available in `fit$lever`; it describes a school's role in
+the regression design as a whole, while partial leverage focuses on `program`.
+
+To save the diagnostics for every school:
+
+```r
+write.csv(diagnostics, "school_diagnostics.csv", row.names = FALSE)
+```
+
+## Adapt it to your own data
+
+Use a data frame with numeric outcome and regression variables. Cluster and
+fixed-effect identifiers can be numeric, character, or factors. String labels
+such as `"School 24"` do not need conversion to numeric codes.
+
+| What you want to change | Argument |
+|---|---|
+| Study a different coefficient | Set `focal` to that column's name |
+| Add several controls | `controls = c("baseline_score", "age")` |
+| Include school and year effects | `fevar = c("school", "year")` |
+| Restrict the sample | `sample = d$year >= 2021` |
+| Cluster by school and year | `cluster = c("school", "year")` |
+| Check whether deleting a cluster makes some coefficients unidentified | `rankcheck = TRUE` |
+
+These are changes to the call above; the named columns must exist in your data.
+Missing selected variables and empty string identifiers are excluded. Year
+effects are treated as categories by `fevar`, even when `year` is numeric.
+
+`absorb = "school"` is another way to account for school effects with one-way
+clustering by school. Each absorbed group must lie within a cluster in every
+clustering dimension. A school observed in several years therefore cannot be
+absorbed when also clustering by year; use `fevar = "school"` for that model.
+The program variable must still vary after your chosen fixed effects and controls
+are accounted for.
+
+## Two-way clustering and the mixed option
+
+Use two clustering variables when your research design calls for them. For
+example, `cluster = c("school", "year")` allows dependence within schools and
+within years. This teaching dataset has only five years, so that specification
+has few clusters in one dimension; it should not be treated as an assurance of
+precise inference.
+
+The printed two-way standard error is the largest of the conventional two-way
+standard error and the two one-way standard errors for the coefficient of
+interest. For a two-way fit, `fit$cv3max_component` identifies the selected component: `"two-way"`,
+`"G"` (the first cluster variable), or `"H"` (the second).
+
+Adding `mixed = TRUE` selects CV31, a different two-way jackknife-based
+calculation that can be faster. It is optional, requires two cluster variables,
+and is never selected automatically. In that case use `fit$cv31max_component`.
+See the [reference](REFERENCE.md) for saved results and the precise distinctions
+between these calculations.
+
+## More help
+
+- [Complete example script](../examples/school_program.R)
+- [Arguments and saved-results reference](REFERENCE.md)
+- [Shared example data and variable definitions](../examples/README.md)
+- [Repository overview and research background](../README.md)
