@@ -2,88 +2,126 @@
 
 # summclust
 
-Diagnostics and inference for linear regression with one-way or two-way clustering, implemented in Stata, base R, and Python/NumPy.
-Version **5.1.1**, with an unreleased presentation revision dated 30 September 2026. Authors: James G. MacKinnon, Morten O. Nielsen, and Matthew D. Webb.
+**See which clusters matter for your regression results.**
 
-This development source includes the explicit mixed estimator (CV31) in all three languages. Stata has passed nine certification suites plus targeted mixed tests on StataNow/SE 18.5 for Windows. It declares Stata 13 compatibility; older Stata releases have not been independently tested in this integration. R uses only standard distributed packages; Python requires NumPy. This commit does not create a new versioned release.
+When you cluster standard errors by school, firm, village, or state, the number
+of observations is only part of the story. A few clusters may supply much of
+the information about the coefficient you care about. `summclust` shows how
+uneven that contribution is and how your estimate changes when each cluster
+is left out.
 
-The language implementations live in [Stata](Stata/), [R](R/README.md), and [python](python/README.md). The repository includes small synthetic verification fixtures, not empirical replication datasets.
+It fits a linear regression, reports cluster-robust standard errors, and helps
+you investigate the sensitivity of a particular coefficient. It supports
+one-way and two-way clustering and categorical fixed effects.
 
-## Install from a local copy
+## Choose your language
 
-Extract or clone the package, then point Stata at its `Stata` subdirectory:
+Each guide includes setup instructions, a worked example, actual output, and
+an explanation of what to look for.
+
+| Language | Start here |
+|---|---|
+| **Stata** | [Stata guide](Stata/README.md) — commands, output tables, and diagnostic plots |
+| **R** | [R guide](R/README.md) — uses base R, with no additional packages |
+| **Python** | [Python guide](python/README.md) — uses NumPy; no pandas required |
+
+The three guides use the same [small teaching dataset](examples/README.md).
+You can compare the results across languages or adapt the example to your
+own study.
+
+## A worked example in Stata
+
+Suppose you are studying a school program. The outcome is a student's test
+score; the variable of interest indicates whether the program was available.
+You control for the student's baseline score and include year fixed effects.
+You cluster by school because observations from the same school may share
+unobserved influences.
+
+The example contains **1,710 student observations in 24 schools over five
+years**. These are fictional data for learning the software, not evidence
+about an actual program.
+
+Download the repository using **Code → Download ZIP** and extract it. In
+Stata, change the working directory to the extracted folder containing this
+README, then run:
 
 ```stata
-net install summclust, from("C:/path/to/summclust/Stata") replace
+adopath ++ "Stata"
 discard
-which summclust
-help summclust
+import delimited using "examples/school_program.csv", clear
+
+summclust test_score program baseline_score, cluster(school) fevar(year) table nograph
 ```
 
-`which summclust` should show version 5.1.1. An ado file in the current working directory or earlier on `adopath` can shadow an installed copy. The package contains `summclust`, its help file, and the compatibility command `twowayjack` with its help file. It uses built-in Stata/Mata functions without other ado dependencies.
+`summclust` estimates the regression itself. Put the outcome first, the
+variable whose coefficient you want to examine second, and the controls
+after that. Here `fevar(year)` adds year indicators, `table` shows individual
+schools, and `nograph` suppresses the diagnostic plot.
 
-## Use
+The regression portion of the actual output is:
 
-The first variable is the outcome, the second is the focal regressor, and the remaining variables are controls. Supply at least one control. Factor-variable notation is not accepted in this varlist; use explicit indicators or `fevar()`.
+```text
+There are 1710 observations within 24 school clusters.
 
-Fixed-effect identifiers in `fevar()` and `absorb()` may be numeric or strings in both one-way and two-way models. R also accepts factors. Categories are handled automatically within the estimation sample, so no manual encoding is needed. Absorbed groups must still be nested within every clustering dimension.
+Regression Output
 
-```stata
-summclust y treatment control, cluster(firm) nograph
-summclust y treatment control, cluster(firm year) nograph
-summclust y treatment control, cluster(firm year) mixed nograph
-summclust y treatment control, cluster(firm year) fevar(firm year) rankcheck nograph
+  s.e. |      Coeff   Sd. Err.   t-stat  P value    CI-lower    CI-upper
+-------+----------------------------------------------------------------
+   CV1 |   3.426371   0.870672   3.9353   0.0007    1.625250    5.227492
+   CV3 |   3.426371   1.059436   3.2341   0.0037    1.234761    5.617981
+------------------------------------------------------------------------
 ```
 
-Default two-way mode computes the G, H, and nonempty intersection components of CV1 and uncentered CV3. It returns the conventional covariance `V_G + V_H - V_I`, including negative diagonal entries when they occur. Displayed focal inference uses the largest of the conventional, G, and H variances with `min(G,H)-1` degrees of freedom. This scalar rule does not define a joint covariance matrix.
+Both rows describe the same adjusted difference of **3.43 test-score points**.
+CV1 is the conventional cluster-robust calculation. CV3 uses the changes in
+the estimate when schools are left out one at a time. In this example CV3
+gives a larger standard error and a wider 95% confidence interval:
+**1.23 to 5.62 points**. The comparison is about uncertainty around the same
+estimate; it does not establish that the program caused the difference.
 
-The explicit `mixed` option selects CV31 = CV3_G + CV3_H - CV1_I. It is off by default and never selected automatically. It skips intersection delete-one coefficient solves; uncomputed intersection coefficients and ordinary CV3 results are missing, while inexpensive diagnostics remain available. `r(cv31_conventional)` and `r(cv31_max_se)` distinguish the raw mixed covariance from max-adjusted inference, labelled CV31 (mixed, max). CV31 is a different estimator that may save computation; no superiority is claimed. See `help summclust` for diagnostics and unsupported combinations.
+The cluster table helps explain why the number of schools alone is not enough.
+Here are three rows from that table:
 
-Useful two-way results include `r(b)`, `r(cv1_conventional)`, `r(cv3_conventional)`, `r(cv1_max_se)`, `r(cv3_max_se)`, and the component and diagnostic matrices documented in `help summclust`. Explicit tie masks identify all components attaining the maximum within a relative tolerance of 1e-10.
-
-Use `sample(expression)` for restrictions. `twowayjack` is now a thin delegate to the native command and also accepts `if` and `in`.
-
-R and Python expose the same explicit choice through their existing interfaces:
-
-```r
-source("R/summclust.R")
-fit <- summclust(data, "y", "x", "z", c("g", "h"), mixed = TRUE)
+```text
+    school |       Ng      Leverage     Partial L.  beta no g
+-----------+-----------------------------------------------------
+ School 01 |       40      0.153976       0.013278   3.549357
+ School 13 |      100      0.458228       0.110505   3.276289
+ School 24 |      300      1.233361       0.174064   4.220215
 ```
 
-```python
-from summclust import summclust  # add the python directory to the module path
-fit = summclust(data, "y", "x", ["z"], ["g", "h"], mixed=True)
-```
+School 24 has 300 observations. Its **partial leverage of 0.174** means it
+supplies about **17.4% of the variation in program status remaining after
+accounting for baseline scores and year effects**. Equal shares across 24
+schools would be about 4.2% each. Leaving School 24 out raises the estimate
+from 3.43 to **4.22 points**, shown under `beta no g`.
 
-Omit `mixed`, or use `FALSE`/`False`, for ordinary CV3. See [the mixed estimator notes](docs/MIXED_CV31.md) for component normalization, unavailable intersection diagnostics, and validation scope.
+That is a reason to understand this school's role and report sensitivity.
+A large diagnostic is not, by itself, a reason to delete a cluster.
 
-## Scope and behavior
+Continue with the [Stata guide](Stata/README.md) for the plot, interpretation
+of every diagnostic, fixed effects, sample restrictions, and two-way
+clustering. The [R](R/README.md) and [Python](python/README.md) guides reproduce
+this same example.
 
-- Default CV3 is the uncentered delete-cluster estimator. The `jackknife` option requests centered CV3J in one-way mode; it is intentionally rejected in two-way mode.
-- For two-way `absorb()`, every absorbed group must be nested inside a G-H intersection. Use `fevar()` for crossed fixed effects.
-- Native two-way estimation rejects full or deleted models in which the focal slope is not numerically identified. Rank loss affecting only nuisance coefficients remains allowed.
-- One-way mode retains the historical near-zero-coefficient flag and dropped-subsample policy for compatibility; `rankcheck` supplies actual numerical rank diagnostics. These are separate concepts.
-- Partial leverage corrects a bug in 4.22. Version 5.1.1 also preserves double-precision outcomes and corrects absorbed-model CV1 degrees of freedom. Results may therefore differ from old releases.
-- Native two-way calls use private temporary Mata objects. The legacy one-way path still exposes working Mata objects, as documented in the audit.
+## Using it in your research
 
-See [CHANGELOG.md](CHANGELOG.md), [the integration audit](docs/AUDIT_2026-09-23.md), and [the output audit](docs/AUDIT_OUTPUT_2026-09-30.md) for the changes, checks, and limitations.
+Choose the clustering level using your study design and the dependence you
+expect in the errors. Use `summclust` to examine the consequences of that
+choice. Pay particular attention when only a few clusters carry much of the
+variation in your variable of interest, or when leaving out one cluster
+changes the substantive conclusion.
 
-## Reproduce the checks
+For two-way clustering, the guides explain the displayed maximum standard
+errors and the optional mixed estimator. The full options and saved results
+are documented in Stata's `help summclust`, the [R reference](R/REFERENCE.md),
+and the [Python reference](python/REFERENCE.md).
 
-On Windows, run from PowerShell:
+## Authors and citation
 
-```powershell
-./tests/run_tests.ps1 -StataExe 'C:/Program Files/Stata18/StataSE-64.exe'
-```
+James G. MacKinnon, Morten Ørregaard Nielsen, and Matthew D. Webb,
+[*Leverage, Influence, and the Jackknife in Clustered Regression Models:
+Reliable Inference Using summclust*](https://arxiv.org/abs/2205.03288).
 
-The runner copies the package and test scripts to a new temporary directory, runs all nine suites and checks plain-text and rendered SMCL output, and prints its log directory. It checks actual success markers because Stata batch exit codes alone do not reliably detect do-file errors. Local installation is tested in an isolated PLUS directory.
-
-On other platforms, copy `Stata/*` and `tests/*.do` to a scratch directory and run the nine do-files listed in `tests/run_tests.ps1` from there. The PowerShell runner itself is Windows-specific.
-
-The targeted three-language mixed and string fixed-effect checks and their portable manual commands are documented in [validation/README.md](validation/README.md). They test full covariance matrices, inference, unchanged defaults, actual skipped solver calls, and cluster diagnostics aligned by identifiers. Run them from the repository root; generated files go to the ignored `output/` directory.
-
-## Background and license
-
-MacKinnon, Nielsen, and Webb, [Leverage, Influence, and the Jackknife in Clustered Regression Models: Reliable Inference Using summclust](https://arxiv.org/abs/2205.03288).
-
-Distributed under the [MIT License](LICENSE).
+[MIT license](LICENSE) · [Change history](CHANGELOG.md) ·
+[Validation details](validation/README.md)
