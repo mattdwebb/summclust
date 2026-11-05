@@ -72,12 +72,42 @@ identifiers are missing. `read_csv` treats empty numeric cells and `.` as NaN;
 declare string columns explicitly. Original arrays and their order are preserved.
 
 `cluster=["firm", "year"]` requests native two-way inference. `fevar` accepts one
-name or a sequence; `absorb` accepts one name. Absorbed groups must be nested
-inside each clustering dimension. `gstar`, `rho`, `jackknife`, `rankcheck`,
+name or a sequence; `absorb` accepts one name. Both accept numeric or string
+identifiers in one-way, two-way, and mixed estimation; no manual encoding is
+needed. Absorbed groups must be nested inside each clustering dimension.
+`gstar`, `rho`, `jackknife`, `rankcheck`,
 `table`, `addmeans`, and `regtable` implement the corresponding numeric options.
 `rho` must be between 0.00001 and 1, inclusive. Omitting it uses the source's
 internal 0.1234567 when `gstar=True`. Graphs and Stata-specific printing are not
 implemented; all graph inputs are returned.
+
+String fixed-effect levels are sorted after sample restrictions and missing
+values have been removed. Their coefficient names use the original column name
+and a 1-based level position, such as `industry_1`, so spaces and punctuation in
+category labels do not enter coefficient names. If this would exceed 32
+characters, the column-name prefix is shortened and the suffix is
+`_f<effect position>_<level position>`, keeping different long effect names
+distinct. Numeric one-way fixed-effect
+names retain their actual values; two-way names use level positions for both
+types. Empty strings, `None`, and numeric nonfinite identifiers are missing;
+nonempty strings such as `"NaN"` or `"Inf"` are ordinary category labels.
+
+For a CSV with string columns `firm` and `industry`, declare both when reading
+the file. The columns `y`, `x`, `z`, and `year` are numeric in this example:
+
+```python
+data = read_csv("data.csv", string_columns=["firm", "industry"])
+oneway = summclust(data, "y", "x", ["z"], "firm", fevar="industry")
+mixed = summclust(data, "y", "x", ["z"], ["firm", "year"],
+                  fevar="industry", mixed=True)
+absorbed = summclust(data, "y", "x", ["z"], "firm", absorb="firm")
+```
+
+If your arrays already contain strings, pass them directly; no numeric encoding
+is needed. Omit `mixed=True` for ordinary two-way estimation. The last call
+uses one-way clustering so each absorbed firm lies within a cluster. When also
+clustering by year, firms observed in several years need `fevar="firm"`
+instead of `absorb="firm"`.
 
 The returned dictionary includes:
 

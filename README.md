@@ -5,7 +5,7 @@
 Diagnostics and inference for linear regression with one-way or two-way clustering, implemented in Stata, base R, and Python/NumPy.
 Version **5.1.1**, with an unreleased presentation revision dated 30 September 2026. Authors: James G. MacKinnon, Morten O. Nielsen, and Matthew D. Webb.
 
-This development source includes the explicit mixed estimator (CV31) in all three languages. Stata has passed eight existing certification suites plus targeted mixed tests on StataNow/SE 18.5 for Windows. It declares Stata 13 compatibility; older Stata releases have not been independently tested in this integration. R uses only standard distributed packages; Python requires NumPy. This commit does not create a new versioned release.
+This development source includes the explicit mixed estimator (CV31) in all three languages. Stata has passed nine certification suites plus targeted mixed tests on StataNow/SE 18.5 for Windows. It declares Stata 13 compatibility; older Stata releases have not been independently tested in this integration. R uses only standard distributed packages; Python requires NumPy. This commit does not create a new versioned release.
 
 The language implementations live in [Stata](Stata/), [R](R/README.md), and [python](python/README.md). The repository includes small synthetic verification fixtures, not empirical replication datasets.
 
@@ -25,6 +25,8 @@ help summclust
 ## Use
 
 The first variable is the outcome, the second is the focal regressor, and the remaining variables are controls. Supply at least one control. Factor-variable notation is not accepted in this varlist; use explicit indicators or `fevar()`.
+
+Fixed-effect identifiers in `fevar()` and `absorb()` may be numeric or strings in both one-way and two-way models. R also accepts factors. Categories are handled automatically within the estimation sample, so no manual encoding is needed. Absorbed groups must still be nested within every clustering dimension.
 
 ```stata
 summclust y treatment control, cluster(firm) nograph
@@ -74,11 +76,11 @@ On Windows, run from PowerShell:
 ./tests/run_tests.ps1 -StataExe 'C:/Program Files/Stata18/StataSE-64.exe'
 ```
 
-The runner copies the package and test scripts to a new temporary directory, runs all eight suites and checks plain-text and rendered SMCL output, and prints its log directory. It checks actual success markers because Stata batch exit codes alone do not reliably detect do-file errors. Local installation is tested in an isolated PLUS directory.
+The runner copies the package and test scripts to a new temporary directory, runs all nine suites and checks plain-text and rendered SMCL output, and prints its log directory. It checks actual success markers because Stata batch exit codes alone do not reliably detect do-file errors. Local installation is tested in an isolated PLUS directory.
 
-On other platforms, copy `Stata/*` and `tests/*.do` to a scratch directory and run the eight do-files listed in `tests/run_tests.ps1` from there. The PowerShell runner itself is Windows-specific.
+On other platforms, copy `Stata/*` and `tests/*.do` to a scratch directory and run the nine do-files listed in `tests/run_tests.ps1` from there. The PowerShell runner itself is Windows-specific.
 
-The targeted three-language mixed suite and its portable manual commands are documented in [validation/README.md](validation/README.md). It tests full covariance matrices, inference, unchanged defaults, actual skipped solver calls, and cluster diagnostics aligned by identifiers. Run it from the repository root; generated files go to the ignored `output/` directory.
+The targeted three-language mixed and string fixed-effect checks and their portable manual commands are documented in [validation/README.md](validation/README.md). They test full covariance matrices, inference, unchanged defaults, actual skipped solver calls, and cluster diagnostics aligned by identifiers. Run them from the repository root; generated files go to the ignored `output/` directory.
 
 ## Background and license
 

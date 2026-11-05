@@ -33,6 +33,17 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'R fixture export failed.' }
     & $PythonExe validation/compare_mixed.py
     if ($LASTEXITCODE -ne 0) { throw 'Cross-language mixed comparison failed.' }
-    Write-Output "All mixed certification and cross-language checks passed. Logs: $scratch"
+    $process = Start-Process -FilePath $StataExe -ArgumentList '/e do tests/export_string_fixed_effects.do' -WorkingDirectory $scratch -WindowStyle Hidden -PassThru
+    if (-not $process.WaitForExit(300000)) { throw "String fixed-effect export timed out; process $($process.Id) remains available." }
+    $stringLog = Join-Path $scratch 'output/stata_string_fe_exports.log'
+    if (-not (Test-Path -LiteralPath $stringLog)) { throw 'Missing Stata string fixed-effect export log.' }
+    if ((Get-Content -LiteralPath $stringLog -Raw) -notmatch '(?m)^STRING FIXED EFFECT EXPORTS PASSED\s*$') { throw 'Stata string fixed-effect export failed.' }
+    & $PythonExe validation/run_string_fixed_effects.py
+    if ($LASTEXITCODE -ne 0) { throw 'Python string fixed-effect export failed.' }
+    & $RscriptExe --vanilla validation/run_string_fixed_effects.R
+    if ($LASTEXITCODE -ne 0) { throw 'R string fixed-effect export failed.' }
+    & $PythonExe validation/run_string_fixed_effects.py --compare
+    if ($LASTEXITCODE -ne 0) { throw 'String fixed-effect cross-language comparison failed.' }
+    Write-Output "All mixed and string fixed-effect certification and cross-language checks passed. Logs: $scratch"
 }
 finally { Pop-Location }

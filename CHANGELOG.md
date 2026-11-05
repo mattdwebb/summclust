@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased string fixed effects — 2026-11-04
+
+- Accept string `fevar` and `absorb` identifiers directly in one-way Stata, and remove R's one-way restriction on string `fevar` columns. Both options now accept strings across all three languages and clustering modes, without a new option; R also accepts factors.
+- Use sorted category ordinals for string fixed-effect coefficient names across languages; preserve existing numeric-input names and results. Long string-effect names use a shortened prefix and effect-position suffix to fit Stata's name limit.
+- Preserve literal string identifiers such as `NaN` and `Inf` in Python; actual missing values and empty identifiers remain excluded.
+- Add equivalent-grouping checks, numeric baseline checks, and shared cross-language comparisons.
+
+## Unreleased Stata help and output revision — 2026-11-04
+
+- Close example paragraphs in the help file and clarify the two-way and mixed-estimator instructions.
+- Rework both Stata help files around usage, interpretation, and stored results; remove project history and implementation notes.
+- State which component supplies each focal max standard error immediately below the regression table, including the cluster variable name and all components tied within the existing tolerance.
+- Preserve all estimator calculations, stored results, and version numbers.
+
 ## Unreleased mixed estimator — 2026-10-30
 
 - Added explicit, default-off `mixed` for two-way CV31 = CV3_G + CV3_H - CV1_I, with separate conventional and max-adjusted inference returns.

@@ -7,7 +7,7 @@ dir.create(file.path(root,"output"),showWarnings=FALSE)
 rs <- file.path(R.home("bin"),"Rscript.exe")
 if(!file.exists(rs)) rs <- file.path(R.home("bin"),"Rscript")
 log <- character()
-for(file in c("test_summclust.R","test_mixed.R","test_default_parity.R")) {
+for(file in c("test_summclust.R","test_mixed.R","test_string_fixed_effects.R","test_default_parity.R")) {
   result <- system2(rs,c("--vanilla",shQuote(file.path(here,file))),stdout=TRUE,stderr=TRUE)
   code <- attr(result,"status"); if(is.null(code)) code <- 0L
   log <- c(log,paste("SCRIPT",file,"EXIT",code),result,"")

@@ -92,20 +92,9 @@ program define summclust, rclass
 	/*xvar labels for regtable*/
 	local name_xvar = "`CTEMP'"
 
-	local catvars = " "
-	foreach catvar in `FEVAR' {
-	    local catvars = " `catvars' " +  "i.`catvar'"
-	}
-
-
-	local absvars = " "
-	foreach avar in `absorb' {
-	    local absvars = " `absvars' " +  "i.`avar'"
-	}
-
 	tempvar temp_sample
 	mark `temp_sample'
-	markout `temp_sample' `yvar' `XTEMP' `CTEMP' `catvars' `absvars' `cluster',strok
+	markout `temp_sample' `yvar' `XTEMP' `CTEMP' `FEVAR' `absorb' `cluster',strok
 
 	/*impose the "sample option" restriction*/
 	if "`sample'" != "" {
@@ -118,6 +107,20 @@ program define summclust, rclass
 
 	quietly count if `temp_sample'==1
 	if r(N)==0 error 2000
+	tempvar temp_order
+	quietly generate long `temp_order' = _n
+
+	/* Normalize only string identifiers, using levels in the estimation sample.
+	   Keep numeric values and original variable names for existing labels. */
+	local fecodes ""
+	local abscode "`absorb'"
+	if `"`absorb'"' != "" {
+		capture confirm string variable `absorb'
+		if !_rc {
+			tempvar abscode
+			quietly egen long `abscode' = group(`absorb') if `temp_sample'==1
+		}
+	}
 
 	/*for fevar*/
 	if `"`fevar'"' != "" {
@@ -128,13 +131,26 @@ program define summclust, rclass
 		foreach fvar in `FEVAR' {
 			local q = `q' + 1
 			local countfevar = `countfevar' + 1
-			qui levelsof `fvar' if `temp_sample'==1, local(fevarlevel)
+			local fcode "`fvar'"
+			capture confirm string variable `fvar'
+			local fe_string = !_rc
+			if `fe_string' {
+				tempvar fcode
+				quietly egen long `fcode' = group(`fvar') if `temp_sample'==1
+			}
+			local fecodes "`fecodes' `fcode'"
+			qui levelsof `fcode' if `temp_sample'==1, local(fevarlevel)
 			local nlevels : word count `fevarlevel'
 			local fpos = 0
 			foreach flevel in `fevarlevel' {
 				local fpos = `fpos' + 1
 				if (`q'==1 & `"`absorb'"'=="") | `fpos'<`nlevels' {
-					local names_fe "`names_fe' `fvar'_`flevel'"
+					local felabel "`fvar'_`flevel'"
+					if `fe_string' & strlen("`felabel'")>32 {
+						local suffix "_f`q'_`flevel'"
+						local felabel = substr("`fvar'",1,32-strlen("`suffix'"))+"`suffix'"
+					}
+					local names_fe "`names_fe' `felabel'"
 				}
 			}
 		}
@@ -153,8 +169,7 @@ program define summclust, rclass
 	/*sort the data by the clustering variable*/
 		/*make a sequential-numeric cluster indicator*/
 
-	tempvar temp_indexa temp_order
-	qui gen long `temp_order' = _n
+	tempvar temp_indexa
 	qui egen `temp_indexa' = group(`cluster') if `temp_sample'==1
 	qui summ `temp_indexa'
 	local G = r(max)
@@ -207,13 +222,14 @@ program define summclust, rclass
 		qui replace `temp_sd' = 0 if `temp_sample'==1 & missing(`temp_sd')
 		qui summarize `temp_sd' if `temp_sample'==1, meanonly
 		if r(max) > 1e-10 {
+			quietly sort `temp_order'
 			disp as error "Cluster variable not constant within absorb variable.  Use fevar instead."
 			exit 198
 		}
 
 		/* Restore the exact row order used to form CVAR and xtilde. */
 		qui sort `temp_indexa' `absorb' `temp_order'
-		qui putmata absorb = `absorb' if `temp_sample'==1, replace
+		qui putmata absorb = `abscode' if `temp_sample'==1, replace
 	}
 
 	/*maybe make this for when there is neither absorb and fevar*/
@@ -240,7 +256,7 @@ program define summclust, rclass
 		qui putmata XOTHER = (`CTEMP') if `temp_sample'==1, replace
 
 		if `"`fevar'"' != "" {
-			qui putmata FECODES = (`FEVAR') if `temp_sample'==1, replace
+			qui putmata FECODES = (`fecodes') if `temp_sample'==1, replace
 			local fe_has_absorb = (`"`absorb'"' != "")
 			mata: FEDUM = _summclust_dummies(FECODES,`fe_has_absorb')
 			mata: X = xtilde, XOTHER, FEDUM
@@ -1281,7 +1297,11 @@ program define _summclust_twoway, rclass
 	/* Encode fixed effects so numeric and string identifiers share one path. */
 	local fecodes ""
 	local fenames ""
+	local fe_position = 0
 	foreach fv of local fevar {
+		local ++fe_position
+		capture confirm string variable `fv'
+		local fe_string = !_rc
 		tempvar fcode
 		quietly egen long `fcode' = group(`fv') if `touse'
 		local fecodes `fecodes' `fcode'
@@ -1292,7 +1312,12 @@ program define _summclust_twoway, rclass
 		else if `"`fenames'"' != "" local flast = `flast'-1
 		if `flast' >= `ffirst' {
 			forvalues ell=`ffirst'/`flast' {
-				local fenames `fenames' `fv'_`ell'
+				local felabel "`fv'_`ell'"
+				if `fe_string' & strlen("`felabel'")>32 {
+					local suffix "_f`fe_position'_`ell'"
+					local felabel = substr("`fv'",1,32-strlen("`suffix'"))+"`suffix'"
+				}
+				local fenames `fenames' `felabel'
 			}
 		}
 	}
@@ -1472,6 +1497,34 @@ program define _summclust_twoway, rclass
 	display as text "{p 0 0 2}Cluster summary statistics for `xvar' when clustered by `clusterg' and `clusterh'.{p_end}"
 	matlist `inference', title(Regression Output) rowtitle(s.e.) ///
 		cspec(& %-4s w8 | %9.6f w10 & %9.6f & %6.4f w7 & %6.4f w7 & %9.6f w10 & %9.6f w10 &) rspec("&|&|")
+	foreach method in 1 3 {
+		local estimator "CV1"
+		local component "CV1"
+		local rowlabel "CV1max"
+		if `method'==3 {
+			local estimator "`cvlabel'"
+			local component "CV3"
+			local rowlabel = upper("`cvname'")+"max"
+		}
+		local source "conventional two-way `estimator'"
+		if "`tw_cv`method'which'"=="G" local source "one-way `component' clustered by `clusterg' (G)"
+		if "`tw_cv`method'which'"=="H" local source "one-way `component' clustered by `clusterh' (H)"
+		display as text "{p 0 0 2}`rowlabel' uses `source'.{p_end}"
+		local ties = `tw_cv`method'ties'
+		if !inlist(`ties',1,2,4) {
+			local tied ""
+			if mod(`ties',2) local tied "conventional two-way `estimator'"
+			if mod(floor(`ties'/2),2) {
+				if "`tied'"!="" local tied "`tied'; "
+				local tied "`tied'one-way `component' clustered by `clusterg' (G)"
+			}
+			if mod(floor(`ties'/4),2) {
+				if "`tied'"!="" local tied "`tied'; "
+				local tied "`tied'one-way `component' clustered by `clusterh' (H)"
+			}
+			display as text "{p 0 0 2}`rowlabel' components are tied within relative tolerance 1e-10: `tied'.{p_end}"
+		}
+	}
 
 	/* At ordinary widths retain the historical 76-column table. Long names
 	   get their own complete label line, followed by an aligned numeric row. */
@@ -1496,15 +1549,6 @@ program define _summclust_twoway, rclass
 	}
 
 	display as text "{p 0 0 2}Inference: t(`df') with df = min(G,H)-1; 95% confidence intervals.{p_end}"
-	local cv1label "`tw_cv1which'"
-	local cv3label "`tw_cv3which'"
-	if "`cv1label'"=="G" local cv1label "`clusterg'"
-	if "`cv1label'"=="H" local cv1label "`clusterh'"
-	if "`cv3label'"=="G" local cv3label "`clusterg'"
-	if "`cv3label'"=="H" local cv3label "`clusterh'"
-	display as text "{p 0 0 2}Max selectors: CV1=`cv1label'; `cvlabel'=`cv3label'.{p_end}"
-	if `tw_cv1ties'!=1 & `tw_cv1ties'!=2 & `tw_cv1ties'!=4 display as text "{p 0 0 2}Note: CV1 maximum components are tied; see r(cv1max_ties).{p_end}"
-	if `tw_cv3ties'!=1 & `tw_cv3ties'!=2 & `tw_cv3ties'!=4 display as text "{p 0 0 2}Note: `cvlabel' maximum components are tied; see r(`cvname'max_ties).{p_end}"
 	display as text "Conventional focal CV1: variance=" as result %11.6f `cv1_conventional_var' as text "  s.e.=" as result %11.6f `cv1_conventional_se'
 	display as text "Conventional focal `cvlabel': variance=" as result %11.6f `cv3_conventional_var' as text "  s.e.=" as result %11.6f `cv3_conventional_se'
 	display as text "{p 0 0 2}Conventional matrices use V_G + V_H - V_intersection. The inference table uses max standard errors, not these matrices.{p_end}"

@@ -18,6 +18,7 @@ $suites = @(
     'certify_integration',
     'certify_output_numerics',
     'certify_output_format',
+    'certify_string_fixed_effects',
     'verify_net_install_twoway'
 )
 foreach ($suite in $suites) {
@@ -34,4 +35,4 @@ foreach ($suite in $suites) {
     Write-Output "PASS $suite"
 }
 & (Join-Path $PSScriptRoot 'check_output_format.ps1') -LogDirectory $testRoot
-Write-Output "All eight suites and text/SMCL formatting checks passed. Logs: $testRoot"
+Write-Output "All $($suites.Count) suites and text/SMCL formatting checks passed. Logs: $testRoot"

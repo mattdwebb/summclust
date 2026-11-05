@@ -263,7 +263,10 @@ def _names(value):
     return [value] if isinstance(value, str) else list(value)
 
 
-def _missing(value):
+def _missing(value, *, identifier=False):
+    if isinstance(value, str) and identifier:
+        # Identifier strings are category labels, including "NaN" or "Inf".
+        return value == ""
     if value is None or (isinstance(value, str) and value == ""):
         return True
     try:
@@ -281,6 +284,14 @@ def _encode(values):
         raise SummclustError("Each identifier column must have a consistent type") from exc
     index = {label: i for i, label in enumerate(levels)}
     return np.asarray([index[v] for v in vals], dtype=int), levels
+
+
+def _string_fe_name(name, effect, level):
+    label = f"{name}_{level}"
+    if len(label) <= 32:
+        return label
+    suffix = f"_f{effect}_{level}"
+    return name[:32 - len(suffix)] + suffix
 
 
 def _nested(fine, coarse):
@@ -458,10 +469,11 @@ def summclust(data: Mapping, outcome: str, focal: str, controls: Sequence[str],
     outcome, focal : names of numeric outcome and coefficient of interest
     controls : ordered names of one or more numeric nuisance regressors
     cluster : one name or a sequence of one/two numeric or string identifier names
-    fevar : optional identifier name or ordered sequence of names
+    fevar : optional numeric/string identifier name or ordered sequence of names
         Explicit indicators: first effect retains all levels without absorption;
-        subsequent effects omit their last sorted level.
-    absorb : optional identifier name
+        subsequent effects omit their last sorted level. String-effect coefficient
+        names use the sorted level's 1-based position, e.g. industry_1.
+    absorb : optional numeric/string identifier name
         One within-transformed effect, nested in every clustering dimension.
     sample : optional boolean mask over incoming rows
         Intersected with complete cases of every model/identifier column.
@@ -500,11 +512,19 @@ def summclust(data: Mapping, outcome: str, focal: str, controls: Sequence[str],
     dogstar = gstar or rho is not None
     rho_value = 0.1234567 if rho is None else float(rho)
     columns = list(dict.fromkeys([outcome, focal] + controls + clusters + fes + ([absorb] if absorb else [])))
+    identifier_columns = set(clusters + fes + ([absorb] if absorb else [])) - set([outcome, focal] + controls)
     absent = [c for c in columns if c not in data]
     if absent:
         raise SummclustError(f"Missing data columns: {absent}")
     nraw = len(data[outcome])
-    arrays = {c: np.asarray(data[c]) for c in columns}
+    arrays = {}
+    for c in columns:
+        values = np.asarray(data[c])
+        if c in identifier_columns and values.dtype.kind in "US":
+            # A plain list containing strings and float NaN is otherwise cast
+            # to Unicode, turning a missing number into the valid label "nan".
+            values = np.asarray(data[c], dtype=object)
+        arrays[c] = values
     if any(a.ndim != 1 or len(a) != nraw for a in arrays.values()):
         raise SummclustError("Model columns must be equal-length one-dimensional sequences")
     mask = np.ones(nraw, dtype=bool)
@@ -512,7 +532,7 @@ def summclust(data: Mapping, outcome: str, focal: str, controls: Sequence[str],
         if arrays[c].dtype.kind in "biuf":
             mask &= np.isfinite(arrays[c])
         else:
-            mask &= np.asarray([not _missing(v) for v in arrays[c]])
+            mask &= np.asarray([not _missing(v, identifier=c in identifier_columns) for v in arrays[c]])
     if sample is not None:
         sample = np.asarray(sample)
         if sample.ndim != 1 or len(sample) != nraw or sample.dtype.kind != "b":
@@ -545,6 +565,9 @@ def summclust(data: Mapping, outcome: str, focal: str, controls: Sequence[str],
         keep = len(levels[f]) - int(bool(absorb) or j > 0)
         for ell in range(keep):
             xs.append((ids[f] == ell).astype(float))
+            if isinstance(levels[f][ell], str):
+                names.append(_string_fe_name(f, j + 1, ell + 1))
+                continue
             value = ell + 1 if two else levels[f][ell]
             if isinstance(value, (float, np.floating)) and value.is_integer():
                 value = int(value)

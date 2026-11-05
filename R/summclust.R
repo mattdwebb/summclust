@@ -154,6 +154,12 @@
 }
 
 .sc_levels <- function(x) sort(unique(x), na.last = NA, method = "radix")
+.sc_string_fe_label <- function(name, position, level) {
+  label <- paste0(name, "_", level)
+  if (nchar(label) <= 32L) return(label)
+  suffix <- paste0("_f", position, "_", level)
+  paste0(substr(name, 1L, 32L - nchar(suffix)), suffix)
+}
 .sc_nested <- function(group, cluster) {
   all(vapply(split(cluster, match(group, .sc_levels(group))), function(z) length(unique(z)) == 1L, logical(1)))
 }
@@ -258,6 +264,7 @@
 #' Cluster diagnostics and one-/two-way cluster-robust covariance estimates.
 #' data is a data.frame or named list; outcome/focal/controls/cluster/fevar and
 #' absorb name columns. sample is a logical mask of original data rows.
+#' Fixed-effect identifiers may be numeric, character, or factor columns.
 #' For the full contract, read R/README.md.
 summclust <- function(data, outcome, focal, controls, cluster, fevar = NULL,
                       absorb = NULL, sample = NULL, gstar = FALSE, rho = NULL,
@@ -281,7 +288,6 @@ summclust <- function(data, outcome, focal, controls, cluster, fevar = NULL,
   n0 <- length(data[[outcome]])
   if (any(vapply(data[columns], length, integer(1)) != n0)) stop("All selected columns must have the same length.", call. = FALSE)
   for (nm in c(outcome, focal, controls)) if (!is.numeric(data[[nm]])) stop("Regression columns must be numeric: ", nm, call. = FALSE)
-  if (!tw && any(!vapply(data[fevar], is.numeric, logical(1)))) stop("One-way fevar columns must be numeric, matching the current Stata path.", call. = FALSE)
   mask <- rep(TRUE, n0)
   for (nm in columns) {
     z <- data[[nm]]
@@ -321,7 +327,9 @@ summclust <- function(data, outcome, focal, controls, cluster, fevar = NULL,
     if (nkeep > 0L) for (q in seq_len(nkeep)) {
       pos <- pos + 1L
       x[, pos] <- as.numeric(d[[nm]] == levels[q])
-      coefficient_names <- c(coefficient_names, paste0(nm, "_", if (tw) q else format(levels[q], trim = TRUE, scientific = FALSE)))
+      label <- if (is.character(d[[nm]])) .sc_string_fe_label(nm, j, q) else
+        paste0(nm, "_", if (tw) q else format(levels[q], trim = TRUE, scientific = FALSE))
+      coefficient_names <- c(coefficient_names, label)
     }
   }
   y <- d[[outcome]]; nabsorb <- 0L

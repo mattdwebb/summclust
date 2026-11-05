@@ -34,15 +34,23 @@ table=FALSE, addmeans=FALSE, regtable=FALSE, mixed=FALSE)`
 - `cluster`: one or two column names. Numeric and string identifiers are
   supported, including nonconsecutive numeric labels. String sorting uses radix
   order rather than the session's language-dependent collation.
-- `fevar`: explicit categorical effects. In one-way mode these are numeric,
-  matching the Stata one-way path. Two-way mode also accepts string effects.
+- `fevar`: explicit categorical effects, supplied as numeric, character, or
+  factor columns in either clustering mode. Character and factor levels are
+  sorted by their labels after sample and missing-value exclusions; unused
+  factor levels do not enter the model. Their coefficient names use the variable
+  name and sorted level position, such as `industry_1`. Existing one-way numeric
+  effects retain their numeric-value labels; two-way effects use level positions.
+  Long string-effect names are shortened to 32 characters, with an `_fJ_K`
+  suffix identifying the effect's position J in `fevar` and its level K.
   With no absorption, all levels of the first effect enter and the final sorted
   level of every subsequent effect is omitted. With absorption, the final level
   is omitted for every explicit effect. There is no additional constant when
   either effect option is used. Otherwise the column order is focal, constant,
   controls. FE columns follow the controls.
-- `absorb`: one effect to remove by within-group demeaning. Each absorbed group
-  must lie within one cluster in every primary clustering dimension.
+- `absorb`: one numeric, character, or factor effect to remove by within-group
+  demeaning. Each absorbed group must lie within one cluster in every primary
+  clustering dimension. String identifiers do not need manual recoding, and
+  the input data are not modified.
 - `sample`: optional logical vector in original row order. Missing sample values
   are excluded, as are missing selected variables and empty string identifiers.
   Infinite numeric values are excluded because Stata has no finite-data infinity.
@@ -64,6 +72,30 @@ table=FALSE, addmeans=FALSE, regtable=FALSE, mixed=FALSE)`
 - `table`, `addmeans`, `regtable`: expose cluster tables, alternative means, and
   all-coefficient inference. Printing/graphs intentionally do not imitate Stata.
   `addmeans` has no additional effect in two-way mode.
+
+## Fixed effects with string labels
+
+Pass the names of character or factor columns directly to `fevar` and `absorb`;
+you do not need to convert their labels to numeric codes. Continuing the
+synthetic example above:
+
+```r
+d$firm <- paste("Firm", d$group)
+d$industry <- rep(c("Manufacturing", "Retail", "Services"), length.out = nrow(d))
+d$year <- rep(1:5, length.out = nrow(d))
+
+oneway <- summclust(d, "y", "x", "z", "firm", fevar = "industry")
+mixed <- summclust(d, "y", "x", "z", c("firm", "year"),
+                  fevar = "industry", mixed = TRUE)
+absorbed <- summclust(d, "y", "x", "z", "firm", absorb = "firm")
+```
+
+The same columns work with ordinary two-way estimation when `mixed` is omitted.
+Absorption requires each effect group to lie within a cluster in every
+clustering dimension. The last call therefore uses one-way clustering: a firm
+observed in several years cannot be absorbed when also clustering by year.
+Use `fevar = "firm"` for that crossed effect. Missing model values and empty
+string identifiers are excluded. Unused factor levels do not affect the fit.
 
 ## Results and precision
 
@@ -173,6 +205,7 @@ Run the independent mathematical tests with:
 ```text
 Rscript R/test_summclust.R
 Rscript R/test_mixed.R
+Rscript R/test_string_fixed_effects.R
 Rscript R/run_mixed_fixtures.R
 ```
 
